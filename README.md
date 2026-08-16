@@ -26,6 +26,16 @@ across everyone who opens the page — no login required. The page reads/writes 
   the page link. Rules validate shape (name/status/votes) but don't restrict who can
   write — fine for a small trusted group, not for a public app.
 
+## Adding a course
+
+When you add a new bucket-list course to the site, generate its line with the
+**No Handicap Tour Caddie** GPT: https://chatgpt.com/g/g-6a81f192cd0c8191a81498e513841be1-no-handicap-tour-caddie
+
+Give it: the course name, status (Bucket item / Next trip / Completed), who added
+it, and the course's vibe. It returns a funny, character-specific line — paste
+that into the **Inside joke / scouting report** field when you add the course
+on the site.
+
 ## Notes
 
 The "Export list" button still downloads the current shared list as JSON, useful for backups.
