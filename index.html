@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Anaconda Hills Golf Bucket List</title>
+  <meta name="description" content="A highly unofficial golf bucket list for The Par Hunter, The Brush Hunter, The Foreman, and the crew." />
+  <style>
+    :root {
+      --bg: #10130f;
+      --panel: #171b14;
+      --text: #f7f1df;
+      --muted: #c7bfa8;
+      --gold: #d7a84c;
+      --border: rgba(247, 241, 223, 0.16);
+      --shadow: 0 18px 40px rgba(0,0,0,.35);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 15% 5%, rgba(215,168,76,.18), transparent 32rem),
+        radial-gradient(circle at 86% 2%, rgba(61,107,61,.22), transparent 30rem),
+        linear-gradient(180deg, #0b0d0a, var(--bg) 38%, #090a08);
+      min-height: 100vh;
+    }
+    .wrap { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 48px; }
+    header {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      padding: 34px;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.02)),
+        radial-gradient(circle at 78% 12%, rgba(215,168,76,.16), transparent 22rem),
+        #141812;
+      box-shadow: var(--shadow);
+    }
+    .eyebrow { display: inline-flex; gap: 8px; align-items: center; padding: 7px 12px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); background: rgba(0,0,0,.18); font-size: 13px; letter-spacing: .05em; text-transform: uppercase; }
+    h1 { margin: 18px 0 10px; font-size: clamp(38px, 7vw, 78px); line-height: .9; letter-spacing: -.06em; }
+    .lead { max-width: 760px; color: var(--muted); font-size: clamp(16px, 2vw, 20px); line-height: 1.55; margin: 0; }
+    .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; color: var(--text); border: 1px solid var(--border); background: rgba(255,255,255,.06); border-radius: 999px; padding: 10px 14px; transition: transform .12s ease, background .12s ease, border-color .12s ease; }
+    button:hover { transform: translateY(-1px); border-color: rgba(215,168,76,.65); background: rgba(215,168,76,.12); }
+    .primary { background: var(--gold); color: #17120a; border-color: transparent; font-weight: 800; }
+    .danger { background: rgba(180,72,61,.14); border-color: rgba(180,72,61,.45); }
+    .tiny { padding: 7px 10px; font-size: 13px; }
+    .grid { display: grid; gap: 16px; }
+    .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 18px 0; }
+    .card { border: 1px solid var(--border); border-radius: var(--radius); background: rgba(23,27,20,.88); box-shadow: var(--shadow); padding: 18px; }
+    .stat-label { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
+    .stat-value { font-size: 30px; font-weight: 900; margin-top: 5px; }
+    .stat-note { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    label { color: var(--muted); font-size: 13px; display: grid; gap: 6px; }
+    input, select, textarea { width: 100%; color: var(--text); background: rgba(0,0,0,.22); border: 1px solid var(--border); border-radius: 12px; padding: 11px 12px; outline: none; }
+    input:focus, select:focus, textarea:focus { border-color: rgba(215,168,76,.75); box-shadow: 0 0 0 3px rgba(215,168,76,.12); }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; align-items: center; justify-content: space-between; }
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; }
+    .filter.active { background: rgba(215,168,76,.95); color: #17120a; font-weight: 800; }
+    .course-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .course { position: relative; overflow: hidden; min-height: 260px; display: flex; flex-direction: column; gap: 12px; }
+    .course::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 100% 0%, var(--accent-soft), transparent 18rem); pointer-events: none; }
+    .course > * { position: relative; }
+    .course-top { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
+    .course h2 { margin: 0; font-size: 24px; line-height: 1; letter-spacing: -.03em; }
+    .location { color: var(--muted); margin-top: 6px; font-size: 14px; }
+    .pill { border-radius: 999px; padding: 6px 9px; font-size: 12px; font-weight: 800; white-space: nowrap; }
+    .status-Completed { background: rgba(61,107,61,.32); color: #d9ffd7; }
+    .status-Next { background: rgba(215,168,76,.28); color: #ffe5aa; }
+    .status-Bucket { background: rgba(78,135,166,.25); color: #d8f2ff; }
+    .note { color: #f4e7c1; line-height: 1.45; margin: 0; }
+    .meta { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; gap: 10px; }
+    .bar { height: 8px; background: rgba(255,255,255,.1); border-radius: 999px; overflow: hidden; }
+    .bar span { display: block; height: 100%; width: 0; background: var(--gold); border-radius: 999px; transition: width .2s ease; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+    .empty { grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 28px; }
+    .characters { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 18px; }
+    .character { background: rgba(0,0,0,.16); border: 1px solid var(--border); border-radius: 16px; padding: 14px; }
+    .character strong { display: block; margin-bottom: 4px; }
+    .character span { color: var(--muted); font-size: 13px; line-height: 1.4; display: block; }
+    footer { color: var(--muted); font-size: 13px; text-align: center; margin-top: 28px; }
+    dialog { width: min(620px, calc(100% - 28px)); border: 1px solid var(--border); border-radius: 20px; background: #141812; color: var(--text); padding: 0; box-shadow: var(--shadow); }
+    dialog::backdrop { background: rgba(0,0,0,.7); }
+    .modal { padding: 20px; }
+    .modal h2 { margin: 0 0 12px; }
+    .modal-grid { display: grid; gap: 12px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+    @media (max-width: 880px) { .stats, .course-list, .characters { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 560px) { .wrap { width: min(100% - 22px, 1120px); padding-top: 14px; } header { padding: 22px; border-radius: 22px; } .stats, .course-list, .characters { grid-template-columns: 1fr; } .hero-actions button { width: 100%; } }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <span class="eyebrow">⛳ Highly unofficial committee record</span>
+      <h1>Anaconda Hills<br>Golf Bucket List</h1>
+      <p class="lead">A shared ledger for the crew’s golf trips, unfinished business, questionable confidence, endangered clubs, and courses that may or may not require adult supervision.</p>
+      <div class="hero-actions">
+        <button class="primary" id="openAdd">Add a course</button>
+        <button id="randomPick">Spin the bad-decision wheel</button>
+        <button id="exportJson">Export list</button>
+      </div>
+    </header>
+    <section class="grid stats" aria-label="Trip stats">
+      <div class="card"><div class="stat-label">Completed</div><div class="stat-value" id="completedCount">0</div><div class="stat-note">Courses conquered</div></div>
+      <div class="card"><div class="stat-label">Next trip</div><div class="stat-value" id="nextTrip">TBD</div><div class="stat-note">Current target</div></div>
+      <div class="card"><div class="stat-label">Bucket list</div><div class="stat-value" id="totalCount">0</div><div class="stat-note">Bad ideas pending</div></div>
+      <div class="card"><div class="stat-label">Votes</div><div class="stat-value" id="voteCount">0</div><div class="stat-note">From the degenerates committee</div></div>
+    </section>
+    <section class="card">
+      <div class="toolbar">
+        <div class="filters" aria-label="Filter bucket list">
+          <button class="filter active" data-filter="All">All</button>
+          <button class="filter" data-filter="Completed">Completed</button>
+          <button class="filter" data-filter="Next trip">Next trip</button>
+          <button class="filter" data-filter="Bucket item">Bucket item</button>
+        </div>
+        <select id="sortBy" aria-label="Sort courses"><option value="votes">Sort by votes</option><option value="status">Sort by status</option><option value="name">Sort by name</option></select>
+      </div>
+      <div id="courseList" class="grid course-list"></div>
+    </section>
+    <section class="grid characters" aria-label="Crew identities">
+      <div class="character"><strong>The Par Hunter</strong><span>New SIM2 Max. One 425-yard legend. Absolutely no need to fact-check cart path assistance.</span></div>
+      <div class="character"><strong>The Brush Hunter</strong><span>Fairways fear him. Brushes remember him. Clubs file for emotional damages.</span></div>
+      <div class="character"><strong>The Foreman</strong><span>Money inside 100. Off the tee, local golfers are advised to maintain situational awareness.</span></div>
+      <div class="character"><strong>The Cougar Hunter</strong><span>Charm rating: dangerous. Most effective near par-19 watering holes and patio seating.</span></div>
+    </section>
+    <footer>Built for bad golf, good friends, and the sacred pursuit of pretending the next trip is “about the course.”</footer>
+  </main>
+  <dialog id="courseDialog">
+    <form method="dialog" class="modal" id="courseForm">
+      <h2 id="dialogTitle">Add course</h2>
+      <div class="modal-grid">
+        <input type="hidden" id="editId" />
+        <label>Course name <input id="courseName" required placeholder="Example: Bandon Dunes" /></label>
+        <label>Location <input id="courseLocation" placeholder="City, state" /></label>
+        <label>Status <select id="courseStatus"><option>Bucket item</option><option>Next trip</option><option>Completed</option></select></label>
+        <label>Trip window <input id="courseWindow" placeholder="Example: Summer 2027" /></label>
+        <label>Inside joke / scouting report <textarea id="courseNote" rows="3" placeholder="Example: Bring bail money and extra balls."></textarea></label>
+      </div>
+      <div class="modal-actions"><button type="button" id="cancelDialog">Cancel</button><button class="primary" value="save">Save course</button></div>
+    </form>
+  </dialog>
+  <script>
+    const STORAGE_KEY = "golfBucketList.v1";
+    const starterCourses = [
+      { id: crypto.randomUUID(), name: "Seeley Lake", location: "Seeley Lake, MT", status: "Completed", window: "Completed", votes: 4, note: "First official proving ground. Rain tried to kill the vibe. Failed." },
+      { id: crypto.randomUUID(), name: "Coeur d'Alene Resort Course", location: "Coeur d'Alene, ID", status: "Next trip", window: "Summer 2027", votes: 4, note: "Floating green. Floating egos. The Par Hunter already has a logo for it." },
+      { id: crypto.randomUUID(), name: "Tobacco Road", location: "Sanford, NC", status: "Bucket item", window: "Someday / when the group chat gets reckless", votes: 3, note: "A bucket-list fever dream where scorecards go to die and excuses become literature." }
+    ];
+    let courses = loadCourses();
+    let filter = "All";
+    let sortBy = "votes";
+    const list = document.getElementById("courseList");
+    const dialog = document.getElementById("courseDialog");
+    const form = document.getElementById("courseForm");
+    function loadCourses() { try { const saved = localStorage.getItem(STORAGE_KEY); return saved ? JSON.parse(saved) : starterCourses; } catch { return starterCourses; } }
+    function saveCourses() { localStorage.setItem(STORAGE_KEY, JSON.stringify(courses)); }
+    function statusClass(status) { if (status === "Completed") return "status-Completed"; if (status === "Next trip") return "status-Next"; return "status-Bucket"; }
+    function statusOrder(status) { return { "Next trip": 0, "Bucket item": 1, "Completed": 2 }[status] ?? 3; }
+    function nextStatus(status) { return status === "Bucket item" ? "Next trip" : status === "Next trip" ? "Completed" : "Bucket item"; }
+    function escapeHtml(value) { return String(value).replace(/[&<>"']/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char])); }
+    function render() {
+      let visible = courses.filter(c => filter === "All" || c.status === filter);
+      visible = visible.sort((a, b) => sortBy === "name" ? a.name.localeCompare(b.name) : sortBy === "status" ? statusOrder(a.status) - statusOrder(b.status) : b.votes - a.votes);
+      list.innerHTML = "";
+      if (!visible.length) list.innerHTML = '<div class="empty">No courses here yet. Apparently the committee showed restraint. Weird.</div>';
+      const maxVotes = Math.max(1, ...courses.map(c => c.votes));
+      for (const course of visible) {
+        const card = document.createElement("article");
+        card.className = "card course";
+        card.style.setProperty("--accent-soft", course.status === "Completed" ? "rgba(61,107,61,.22)" : course.status === "Next trip" ? "rgba(215,168,76,.25)" : "rgba(78,135,166,.18)");
+        card.innerHTML = `<div class="course-top"><div><h2>${escapeHtml(course.name)}</h2><div class="location">${escapeHtml(course.location || "Location TBD")}</div></div><span class="pill ${statusClass(course.status)}">${escapeHtml(course.status)}</span></div><p class="note">“${escapeHtml(course.note || "Pending questionable decisions.")}”</p><div class="meta"><span>🗓 ${escapeHtml(course.window || "Date TBD")}</span><span>🔥 ${course.votes} votes</span></div><div class="bar" title="Vote heat"><span style="width:${Math.round((course.votes / maxVotes) * 100)}%"></span></div><div class="actions"><button class="tiny" data-action="vote" data-id="${course.id}">Vote +1</button><button class="tiny" data-action="advance" data-id="${course.id}">Advance status</button><button class="tiny" data-action="edit" data-id="${course.id}">Edit</button><button class="tiny danger" data-action="delete" data-id="${course.id}">Delete</button></div>`;
+        list.appendChild(card);
+      }
+      document.getElementById("completedCount").textContent = courses.filter(c => c.status === "Completed").length;
+      const next = courses.find(c => c.status === "Next trip");
+      document.getElementById("nextTrip").textContent = next ? next.name.replace(" Resort Course", "") : "TBD";
+      document.getElementById("totalCount").textContent = courses.length;
+      document.getElementById("voteCount").textContent = courses.reduce((sum, c) => sum + c.votes, 0);
+      document.querySelectorAll(".filter").forEach(btn => btn.classList.toggle("active", btn.dataset.filter === filter));
+    }
+    function openDialog(course = null) {
+      document.getElementById("dialogTitle").textContent = course ? "Edit course" : "Add course";
+      document.getElementById("editId").value = course?.id || "";
+      document.getElementById("courseName").value = course?.name || "";
+      document.getElementById("courseLocation").value = course?.location || "";
+      document.getElementById("courseStatus").value = course?.status || "Bucket item";
+      document.getElementById("courseWindow").value = course?.window || "";
+      document.getElementById("courseNote").value = course?.note || "";
+      dialog.showModal();
+    }
+    document.getElementById("openAdd").addEventListener("click", () => openDialog());
+    document.getElementById("cancelDialog").addEventListener("click", () => dialog.close());
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const id = document.getElementById("editId").value;
+      const payload = { id: id || crypto.randomUUID(), name: document.getElementById("courseName").value.trim(), location: document.getElementById("courseLocation").value.trim() || "Location TBD", status: document.getElementById("courseStatus").value, window: document.getElementById("courseWindow").value.trim() || "Date TBD", note: document.getElementById("courseNote").value.trim() || "Pending questionable decisions.", votes: id ? (courses.find(c => c.id === id)?.votes ?? 0) : 0 };
+      if (!payload.name) return;
+      courses = id ? courses.map(c => c.id === id ? payload : c) : [...courses, payload];
+      saveCourses(); dialog.close(); render();
+    });
+    list.addEventListener("click", (event) => {
+      const button = event.target.closest("button"); if (!button) return;
+      const id = button.dataset.id; const action = button.dataset.action; const course = courses.find(c => c.id === id); if (!course) return;
+      if (action === "vote") course.votes += 1;
+      if (action === "advance") course.status = nextStatus(course.status);
+      if (action === "edit") { openDialog(course); return; }
+      if (action === "delete") { if (!confirm(`Delete ${course.name}? This is how traditions die.`)) return; courses = courses.filter(c => c.id !== id); }
+      saveCourses(); render();
+    });
+    document.querySelectorAll(".filter").forEach(btn => btn.addEventListener("click", () => { filter = btn.dataset.filter; render(); }));
+    document.getElementById("sortBy").addEventListener("change", event => { sortBy = event.target.value; render(); });
+    document.getElementById("randomPick").addEventListener("click", () => { const candidates = courses.filter(c => c.status !== "Completed"); if (!candidates.length) { alert("Everything is completed. Either you are legends, or the list is too weak."); return; } const pick = candidates[Math.floor(Math.random() * candidates.length)]; alert(`The committee of bad decisions selects: ${pick.name}\n\n${pick.note}`); });
+    document.getElementById("exportJson").addEventListener("click", () => { const blob = new Blob([JSON.stringify(courses, null, 2)], { type: "application/json" }); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = "golf-bucket-list.json"; link.click(); URL.revokeObjectURL(url); });
+    render();
+  </script>
+</body>
+</html>
