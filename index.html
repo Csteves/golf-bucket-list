@@ -38,6 +38,7 @@
     .sync-note{color:var(--muted);font-size:12px;margin-top:10px}
     .char-icon{width:32px;height:32px;object-fit:contain;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:10px;padding:3px;vertical-align:middle;flex-shrink:0}
     .char-icon.tiny-icon{width:20px;height:20px;border-radius:7px;padding:2px}
+    .char-icon.mini-icon{width:16px;height:16px;border-radius:5px;padding:1px;margin-right:4px}
     .character-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
     .character-head strong{margin-bottom:0}
     .addedby-row{display:flex;align-items:center;gap:8px}
@@ -207,9 +208,9 @@
     const CADDIE_URL = "https://no-handicap-caddie.no-handicap-tour.workers.dev";
 
     const starterCourses=[
-      {id:"seeley",name:"Seeley Lake",location:"Seeley Lake, MT",status:"Completed",window:"Completed",votes:0,note:"First official proving ground. Rain tried to kill the vibe. Failed."},
-      {id:"cdl",name:"Coeur d'Alene Resort Course",location:"Coeur d'Alene, ID",status:"Next trip",window:"Summer 2027",votes:0,note:"Floating green. Floating egos. The Par Hunter already has a logo for it."},
-      {id:"tobacco",name:"Tobacco Road",location:"Sanford, NC",status:"Bucket item",window:"Someday / when the group chat gets reckless",votes:0,note:"A bucket-list fever dream where scorecards go to die and excuses become literature."}
+      {id:"seeley",name:"Seeley Lake",location:"Seeley Lake, MT",status:"Completed",window:"Completed",votes:0,addedBy:"The Foreman",note:"First official proving ground. Rain tried to kill the vibe. Failed."},
+      {id:"cdl",name:"Coeur d'Alene Resort Course",location:"Coeur d'Alene, ID",status:"Next trip",window:"Summer 2027",votes:0,addedBy:"The Par Hunter",note:"Floating green. Floating egos. The Par Hunter already has a logo for it."},
+      {id:"tobacco",name:"Tobacco Road",location:"Sanford, NC",status:"Bucket item",window:"Someday / when the group chat gets reckless",votes:0,addedBy:"The Par Hunter",note:"A bucket-list fever dream where scorecards go to die and excuses become literature."}
     ];
 
     const CHAR_ICONS = {
@@ -244,7 +245,9 @@
       visible.forEach(c=>{
         const el=document.createElement("article"); el.className="card course";
         el.style.setProperty("--accent-soft",c.status==="Completed"?"rgba(61,107,61,.22)":c.status==="Next trip"?"rgba(215,168,76,.25)":"rgba(78,135,166,.18)");
-        el.innerHTML=`<div class="course-top"><div><h2>${esc(c.name)}</h2><div class="location">${esc(c.location||"Location TBD")}</div></div><span class="pill ${statusClass(c.status)}">${esc(c.status)}</span></div><p class="note">“${esc(c.note||"Pending questionable decisions.")}”</p><div class="meta"><span>🗓 ${esc(c.window||"Date TBD")}</span><span>🔥 ${c.votes} votes</span></div><div class="bar"><span style="width:${Math.round(c.votes/max*100)}%"></span></div><div class="actions"><button class="tiny" data-action="vote" data-id="${c.id}">Vote +1</button><button class="tiny" data-action="advance" data-id="${c.id}">Advance status</button><button class="tiny" data-action="edit" data-id="${c.id}">Edit</button><button class="tiny danger" data-action="delete" data-id="${c.id}">Delete</button></div>`;
+        const addedByIcon=CHAR_ICONS[c.addedBy]?`<img class="char-icon mini-icon" src="${CHAR_ICONS[c.addedBy]}" alt="">`:"";
+        const addedByBadge=c.addedBy?`<span>${addedByIcon}${esc(c.addedBy)}</span>`:"";
+        el.innerHTML=`<div class="course-top"><div><h2>${esc(c.name)}</h2><div class="location">${esc(c.location||"Location TBD")}</div></div><span class="pill ${statusClass(c.status)}">${esc(c.status)}</span></div><p class="note">“${esc(c.note||"Pending questionable decisions.")}”</p><div class="meta">${addedByBadge}<span>🗓 ${esc(c.window||"Date TBD")}</span><span>🔥 ${c.votes} votes</span></div><div class="bar"><span style="width:${Math.round(c.votes/max*100)}%"></span></div><div class="actions"><button class="tiny" data-action="vote" data-id="${c.id}">Vote +1</button><button class="tiny" data-action="advance" data-id="${c.id}">Advance status</button><button class="tiny" data-action="edit" data-id="${c.id}">Edit</button><button class="tiny danger" data-action="delete" data-id="${c.id}">Delete</button></div>`;
         list.appendChild(el);
       });
       $("completedCount").textContent=courses.filter(c=>c.status==="Completed").length;
@@ -271,7 +274,7 @@
       if(src){icon.src=src; icon.style.display="";} else {icon.style.display="none";}
     }
     function openDialog(c){
-      $("dialogTitle").textContent=c?"Edit course":"Add course"; $("editId").value=c?.id||""; $("courseName").value=c?.name||""; $("courseLocation").value=c?.location||""; $("courseStatus").value=c?.status||"Bucket item"; $("courseWindow").value=c?.window||""; $("courseNote").value=c?.note||""; $("courseAddedBy").value=c?"":myCharacter; $("courseFeatures").value=""; $("caddieResults").innerHTML=""; $("caddieStatus").textContent=""; updateAddedByIcon(); dialog.showModal();
+      $("dialogTitle").textContent=c?"Edit course":"Add course"; $("editId").value=c?.id||""; $("courseName").value=c?.name||""; $("courseLocation").value=c?.location||""; $("courseStatus").value=c?.status||"Bucket item"; $("courseWindow").value=c?.window||""; $("courseNote").value=c?.note||""; $("courseAddedBy").value=c?(c.addedBy||""):myCharacter; $("courseFeatures").value=""; $("caddieResults").innerHTML=""; $("caddieStatus").textContent=""; updateAddedByIcon(); dialog.showModal();
     }
     $("openAdd").onclick=()=>openDialog(); $("cancelDialog").onclick=()=>dialog.close();
     $("courseAddedBy").onchange=updateAddedByIcon;
@@ -308,7 +311,7 @@
       e.preventDefault();
       const id=$("editId").value;
       const existing=courses.find(c=>c.id===id);
-      const payload={name:$("courseName").value.trim(),location:$("courseLocation").value.trim()||"Location TBD",status:$("courseStatus").value,window:$("courseWindow").value.trim()||"Date TBD",note:$("courseNote").value.trim()||"Pending questionable decisions.",votes:existing?.votes??0};
+      const payload={name:$("courseName").value.trim(),location:$("courseLocation").value.trim()||"Location TBD",status:$("courseStatus").value,window:$("courseWindow").value.trim()||"Date TBD",note:$("courseNote").value.trim()||"Pending questionable decisions.",addedBy:$("courseAddedBy").value||"",votes:existing?.votes??0};
       if(!payload.name)return;
       await setDoc(doc(db,"courses",id||crypto.randomUUID()),payload);
       dialog.close();
