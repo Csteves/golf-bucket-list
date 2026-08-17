@@ -221,6 +221,10 @@
 
     const CADDIE_URL = "https://no-handicap-caddie.no-handicap-tour.workers.dev";
 
+    function notify(payload){
+      fetch(`${CADDIE_URL}/notify`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}).catch(()=>{});
+    }
+
     const starterCourses=[
       {id:"seeley",name:"Seeley Lake",location:"Seeley Lake, MT",status:"Completed",window:"Completed",votes:0,addedBy:"The Foreman",note:"First official proving ground. Rain tried to kill the vibe. Failed."},
       {id:"cdl",name:"Coeur d'Alene Resort Course",location:"Coeur d'Alene, ID",status:"Next trip",window:"Summer 2027",votes:0,addedBy:"The Par Hunter",note:"Floating green. Floating egos. The Par Hunter already has a logo for it."},
@@ -429,6 +433,7 @@
       if(!payload.name)return;
       if(payload.status==="Next trip") await enforceSingleNextTrip(id);
       await setDoc(doc(db,"courses",id),payload);
+      if(!existing) notify({type:"new_course",courseName:payload.name,status:payload.status,addedBy:payload.addedBy});
       dialog.close();
     };
     list.onclick=async e=>{
@@ -441,6 +446,7 @@
           voters: hasVoted?arrayRemove(myCharacter):arrayUnion(myCharacter),
           votes: increment(hasVoted?-1:1)
         });
+        if(!hasVoted) notify({type:"new_vote",courseName:c.name,voter:myCharacter});
       }
       if(b.dataset.action==="advance"){
         const nextStatus=c.status==="Bucket item"?"Next trip":c.status==="Next trip"?"Completed":"Bucket item";

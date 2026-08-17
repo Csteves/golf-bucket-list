@@ -1,4 +1,6 @@
 const ALLOWED_ORIGIN = "https://csteves.github.io";
+const NOTIFY_TO = "barryblocker44@gmail.com";
+const NOTIFY_FROM = "No Handicap Tour <onboarding@resend.dev>";
 
 const INSTRUCTIONS = `You are the official comedy caddie and copywriter for The No Handicap Golf Tour.
 
@@ -156,9 +158,28 @@ function extractOutputText(data) {
   return part?.text || "";
 }
 
+function notifySubjectAndText(body) {
+  if (body?.type === "new_course") {
+    const { courseName, status, addedBy } = body;
+    return {
+      subject: `New bucket-list add: ${courseName}`,
+      text: `${addedBy || "Someone"} just added "${courseName}" (${status || "Bucket item"}) to the No Handicap Tour list.`,
+    };
+  }
+  if (body?.type === "new_vote") {
+    const { courseName, voter } = body;
+    return {
+      subject: `New vote: ${courseName}`,
+      text: `${voter || "Someone"} just voted for "${courseName}" on the No Handicap Tour list.`,
+    };
+  }
+  return null;
+}
+
 export default {
   async fetch(request, env) {
     const origin = request.headers.get("Origin") || "";
+    const url = new URL(request.url);
 
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: corsHeaders(origin) });
@@ -166,6 +187,58 @@ export default {
 
     if (request.method !== "POST") {
       return new Response("Method not allowed", { status: 405, headers: corsHeaders(origin) });
+    }
+
+    if (url.pathname === "/notify") {
+      let notifyBody;
+      try {
+        notifyBody = await request.json();
+      } catch {
+        return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+        });
+      }
+
+      const msg = notifySubjectAndText(notifyBody);
+      if (!msg) {
+        return new Response(JSON.stringify({ error: "Unknown notify type" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+        });
+      }
+
+      try {
+        const resp = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${env.RESEND_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: NOTIFY_FROM,
+            to: [NOTIFY_TO],
+            subject: msg.subject,
+            text: msg.text,
+          }),
+        });
+        if (!resp.ok) {
+          const errText = await resp.text();
+          return new Response(JSON.stringify({ error: `Resend error: ${errText}` }), {
+            status: 502,
+            headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+          });
+        }
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message || "Unknown error" }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+        });
+      }
+
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+      });
     }
 
     let body;
