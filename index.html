@@ -34,10 +34,77 @@
     dialog{width:min(620px,calc(100% - 28px));border:1px solid var(--border);border-radius:20px;background:#141812;color:var(--text);padding:0;box-shadow:var(--shadow)}dialog::backdrop{background:rgba(0,0,0,.7)}.modal{padding:20px}.modal-grid{display:grid;gap:12px}.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
     footer{text-align:center;margin-top:28px}
     .sync-note{color:var(--muted);font-size:12px;margin-top:10px}
+    body.locked .wrap{display:none}
+    #gate{position:fixed;inset:0;z-index:999;display:none;align-items:center;justify-content:center;padding:20px;background:radial-gradient(circle at 20% 10%,rgba(215,168,76,.15),transparent 32rem),radial-gradient(circle at 85% 90%,rgba(61,107,61,.2),transparent 30rem),linear-gradient(180deg,#090a08,#0d100c)}
+    body.locked #gate{display:flex}
+    .gate-card{width:min(420px,100%);border:1px solid var(--border);background:rgba(23,27,20,.95);border-radius:24px;padding:30px;box-shadow:var(--shadow);text-align:center}
+    .gate-card .eyebrow{margin-bottom:14px}
+    .gate-card h2{margin:0 0 8px;font-size:28px;letter-spacing:-.03em}
+    .gate-card p{color:var(--muted);font-size:14px;line-height:1.5;margin:0 0 20px}
+    .gate-card input{text-align:center;font-size:18px;letter-spacing:.05em;margin-bottom:12px}
+    .gate-card button{width:100%;margin-top:4px}
+    .gate-msg{min-height:20px;font-size:13px;margin-top:14px;color:#ffb4a8}
+    .gate-msg.ok{color:#a8ffb4}
+    .gate-hint{font-size:12px;color:var(--muted);margin-top:10px;font-style:italic}
+    .shake{animation:shake .4s}
+    @keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-8px)}40%,60%{transform:translateX(8px)}}
     @media(max-width:880px){.stats,.course-list,.characters{grid-template-columns:1fr 1fr}}@media(max-width:560px){.wrap{width:min(100% - 22px,1120px);padding-top:14px}.stats,.course-list,.characters{grid-template-columns:1fr}header{padding:22px;border-radius:22px}.hero-actions button{width:100%}}
   </style>
 </head>
-<body>
+<body class="locked">
+  <script>
+    if (localStorage.getItem("ndht_gate") === "ok") document.body.classList.remove("locked");
+  </script>
+  <div id="gate">
+    <div class="gate-card">
+      <span class="eyebrow">🔒 Committee credential check</span>
+      <h2>Prove You Belong</h2>
+      <p>This tour has a very exclusive membership policy. There are four of us. Enter the sacred passphrase to proceed.</p>
+      <form id="gateForm">
+        <input id="gatePass" type="password" autocomplete="off" placeholder="Enter the sacred passphrase" required>
+        <button type="submit" class="primary">Prove Yourself</button>
+      </form>
+      <div id="gateMsg" class="gate-msg"></div>
+      <div id="gateHint" class="gate-hint" style="display:none">Hint: ask the group chat. We are not typing it here.</div>
+    </div>
+  </div>
+  <script>
+    (function(){
+      const PASS_HASH = "130abd911313b1be2767be0d4f376424f988b04a62b8f835337eab95a92f1dd5";
+      const roasts = [
+        "Denied. The Par Hunter looked at your entry and just shook his head.",
+        "Nope. Even the Foreman wouldn't approve that shot.",
+        "Wrong. Somewhere, a bush is being violently trimmed in your honor.",
+        "Incorrect. The clubhouse has been alerted to a suspicious individual.",
+        "Still wrong. Try channeling more golf-bro energy."
+      ];
+      let attempts = 0;
+      async function sha256(text){
+        const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+        return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+      }
+      document.getElementById("gateForm").addEventListener("submit", async (e)=>{
+        e.preventDefault();
+        const card = document.querySelector(".gate-card");
+        const msg = document.getElementById("gateMsg");
+        const input = document.getElementById("gatePass");
+        const hash = await sha256(input.value.trim());
+        if (hash === PASS_HASH) {
+          msg.textContent = "Access granted. Welcome back, legend.";
+          msg.classList.add("ok");
+          localStorage.setItem("ndht_gate", "ok");
+          setTimeout(()=>document.body.classList.remove("locked"), 500);
+        } else {
+          attempts++;
+          msg.classList.remove("ok");
+          msg.textContent = roasts[Math.min(attempts-1, roasts.length-1)];
+          card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake");
+          if (attempts >= 3) document.getElementById("gateHint").style.display = "block";
+          input.value = ""; input.focus();
+        }
+      });
+    })();
+  </script>
   <main class="wrap">
     <header>
       <span class="eyebrow">⛳ Highly unofficial committee record</span>
