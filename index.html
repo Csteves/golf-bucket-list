@@ -59,18 +59,23 @@
     <div class="gate-card">
       <span class="eyebrow">🔒 Committee credential check</span>
       <h2>Prove You Belong</h2>
-      <p>This tour has a very exclusive membership policy. There are four of us. Enter the sacred passphrase to proceed.</p>
+      <p>This tour has a very exclusive membership policy. There are four of us, and we all have our own secret handshake. Enter yours.</p>
       <form id="gateForm">
-        <input id="gatePass" type="password" autocomplete="off" placeholder="Enter the sacred passphrase" required>
+        <input id="gatePass" type="password" autocomplete="off" placeholder="Your personal passphrase" required>
         <button type="submit" class="primary">Prove Yourself</button>
       </form>
       <div id="gateMsg" class="gate-msg"></div>
-      <div id="gateHint" class="gate-hint" style="display:none">Hint: ask the group chat. We are not typing it here.</div>
+      <div id="gateHint" class="gate-hint" style="display:none">Hint: it's your own handshake, not someone else's. Ask the group chat if you forgot.</div>
     </div>
   </div>
   <script>
     (function(){
-      const PASS_HASH = "130abd911313b1be2767be0d4f376424f988b04a62b8f835337eab95a92f1dd5";
+      const MEMBERS = {
+        "8c1d5962cab813dcf60c3d63b14962d5e5dc77118d73f916e160b3698090e4ea": { character: "The Par Hunter", welcome: "Access granted. No handicap til I die." },
+        "181ca59eac42bf1e4063ee2bf8687ac9dfdce7f9ff4d6d7e9810ca3c8899bcc7": { character: "The Brush Hunter", welcome: "Access granted. Fairways fear you. Brushes remember you." },
+        "a96cf6401523b944fb2ec60964c65be77aeaae5e637edc078e69eebdd8e457a2": { character: "The Foreman", welcome: "Access granted. Money inside 100, chaos off the tee." },
+        "12444af95a849ce3547f92021cf6078f2cfffc03de8dc20717bbcf7e75f7ef4b": { character: "The Cougar Hunter", welcome: "Access granted. The patio has been warned." }
+      };
       const roasts = [
         "Denied. The Par Hunter looked at your entry and just shook his head.",
         "Nope. Even the Foreman wouldn't approve that shot.",
@@ -89,10 +94,12 @@
         const msg = document.getElementById("gateMsg");
         const input = document.getElementById("gatePass");
         const hash = await sha256(input.value.trim());
-        if (hash === PASS_HASH) {
-          msg.textContent = "Access granted. Welcome back, legend.";
+        const member = MEMBERS[hash];
+        if (member) {
+          msg.textContent = member.welcome;
           msg.classList.add("ok");
           localStorage.setItem("ndht_gate", "ok");
+          localStorage.setItem("ndht_character", member.character);
           setTimeout(()=>document.body.classList.remove("locked"), 500);
         } else {
           attempts++;
@@ -116,6 +123,7 @@
         <button id="exportJson">Export list</button>
       </div>
       <p class="sync-note">🔄 Synced live for everyone with this link.</p>
+      <p class="sync-note" id="whoAmI"></p>
     </header>
 
     <section class="grid stats">
@@ -196,6 +204,17 @@
       {id:"tobacco",name:"Tobacco Road",location:"Sanford, NC",status:"Bucket item",window:"Someday / when the group chat gets reckless",votes:0,note:"A bucket-list fever dream where scorecards go to die and excuses become literature."}
     ];
 
+    const myCharacter = localStorage.getItem("ndht_character") || "";
+    if (myCharacter) {
+      const who = document.getElementById("whoAmI");
+      who.innerHTML = `🕶️ Posing as: <strong>${myCharacter}</strong> · <button type="button" id="switchIdentity" class="tiny" style="padding:2px 8px">Not you?</button>`;
+      document.getElementById("switchIdentity").onclick = () => {
+        localStorage.removeItem("ndht_gate");
+        localStorage.removeItem("ndht_character");
+        location.reload();
+      };
+    }
+
     let courses=[], filter="All", sortBy="votes", seeded=false;
     const $=id=>document.getElementById(id), list=$("courseList"), dialog=$("courseDialog"), form=$("courseForm");
     const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -232,7 +251,7 @@
     });
 
     function openDialog(c){
-      $("dialogTitle").textContent=c?"Edit course":"Add course"; $("editId").value=c?.id||""; $("courseName").value=c?.name||""; $("courseLocation").value=c?.location||""; $("courseStatus").value=c?.status||"Bucket item"; $("courseWindow").value=c?.window||""; $("courseNote").value=c?.note||""; $("courseAddedBy").value=""; $("courseFeatures").value=""; $("caddieResults").innerHTML=""; $("caddieStatus").textContent=""; dialog.showModal();
+      $("dialogTitle").textContent=c?"Edit course":"Add course"; $("editId").value=c?.id||""; $("courseName").value=c?.name||""; $("courseLocation").value=c?.location||""; $("courseStatus").value=c?.status||"Bucket item"; $("courseWindow").value=c?.window||""; $("courseNote").value=c?.note||""; $("courseAddedBy").value=c?"":myCharacter; $("courseFeatures").value=""; $("caddieResults").innerHTML=""; $("caddieStatus").textContent=""; dialog.showModal();
     }
     $("openAdd").onclick=()=>openDialog(); $("cancelDialog").onclick=()=>dialog.close();
 
