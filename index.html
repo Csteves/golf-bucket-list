@@ -35,7 +35,7 @@
     .comment-time{margin-left:auto;font-size:11px}
     .comment p{margin:0;color:var(--text);line-height:1.4}
     .course::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 100% 0%,var(--accent-soft),transparent 18rem);pointer-events:none}.course>*{position:relative}
-    .course-top{display:flex;justify-content:space-between;gap:12px;align-items:start}.course h2{margin:0;font-size:24px;line-height:1;letter-spacing:-.03em}.location{margin-top:6px}
+    .course-top{display:flex;justify-content:space-between;gap:12px;align-items:start}.course h2{margin:0;font-size:24px;line-height:1;letter-spacing:-.03em}.course h2 a{color:inherit;text-decoration-color:rgba(247,241,223,.4)}.course h2 a:hover{text-decoration-color:var(--gold)}.location{margin-top:6px}
     .pill{border-radius:999px;padding:6px 9px;font-size:12px;font-weight:800;white-space:nowrap}.status-Completed{background:rgba(61,107,61,.32);color:#d9ffd7}.status-Next{background:rgba(215,168,76,.28);color:#ffe5aa}.status-Bucket{background:rgba(78,135,166,.25);color:#d8f2ff}
     .note{color:#f4e7c1;line-height:1.45;margin:0}.bar{height:8px;background:rgba(255,255,255,.1);border-radius:999px;overflow:hidden}.bar span{display:block;height:100%;background:var(--gold);border-radius:999px}
     label{color:var(--muted);font-size:13px;display:grid;gap:6px}input,select,textarea{width:100%;color:var(--text);background:rgba(0,0,0,.22);border:1px solid var(--border);border-radius:12px;padding:11px 12px}
@@ -190,6 +190,7 @@
       <h2 id="dialogTitle">Add course</h2>
       <div class="modal-grid">
         <input type="hidden" id="editId">
+        <input type="hidden" id="courseWebsite">
         <label>Course name <div class="autocomplete-wrap"><input id="courseName" required placeholder="Example: Bandon Dunes" autocomplete="off"><div id="courseSuggestions" class="suggest-list"></div></div></label>
         <label>Location <input id="courseLocation" placeholder="City, state"></label>
         <label>Status <select id="courseStatus"><option>Bucket item</option><option>Next trip</option><option>Completed</option></select></label>
@@ -295,9 +296,10 @@
         const voteDisabled=c.status==="Completed"||!myCharacter;
         const voteAttr=voteDisabled?` disabled title="${c.status==="Completed"?"Already conquered — no more votes needed.":"Log in to vote."}"`:` title="${hasVoted?"Click to remove your vote":"Vote for this course"}"`;
         const voteLabel=hasVoted?"★ Voted":"Vote +1";
-        el.innerHTML=`<div class="course-top"><div><h2>${esc(c.name)}</h2><div class="location">${esc(c.location||"Location TBD")}</div></div><span class="pill ${statusClass(c.status)}">${esc(c.status)}</span></div><p class="note">“${esc(c.note||"Pending questionable decisions.")}”</p><div class="meta">${addedByBadge}<span>🗓 ${esc(c.window||"Date TBD")}</span><span>🔥 ${c.votes} votes</span><span>💬 ${c.commentCount||0}</span></div><div class="bar"><span style="width:${Math.round(c.votes/max*100)}%"></span></div><div class="actions"><button class="tiny${hasVoted?" primary":""}" data-action="vote" data-id="${c.id}"${voteAttr}>${voteLabel}</button><button class="tiny" data-action="advance" data-id="${c.id}">Advance status</button><button class="tiny" data-action="edit" data-id="${c.id}">Edit</button><button class="tiny danger" data-action="delete" data-id="${c.id}">Delete</button></div>`;
+        const nameLabel=/^https?:\/\//i.test(c.website||"")?`<a href="${esc(c.website)}" target="_blank" rel="noopener noreferrer">${esc(c.name)}</a>`:esc(c.name);
+        el.innerHTML=`<div class="course-top"><div><h2>${nameLabel}</h2><div class="location">${esc(c.location||"Location TBD")}</div></div><span class="pill ${statusClass(c.status)}">${esc(c.status)}</span></div><p class="note">“${esc(c.note||"Pending questionable decisions.")}”</p><div class="meta">${addedByBadge}<span>🗓 ${esc(c.window||"Date TBD")}</span><span>🔥 ${c.votes} votes</span><span>💬 ${c.commentCount||0}</span></div><div class="bar"><span style="width:${Math.round(c.votes/max*100)}%"></span></div><div class="actions"><button class="tiny${hasVoted?" primary":""}" data-action="vote" data-id="${c.id}"${voteAttr}>${voteLabel}</button><button class="tiny" data-action="advance" data-id="${c.id}">Advance status</button><button class="tiny" data-action="edit" data-id="${c.id}">Edit</button><button class="tiny danger" data-action="delete" data-id="${c.id}">Delete</button></div>`;
         el.addEventListener("click", e=>{
-          if(e.target.closest(".actions")) return;
+          if(e.target.closest(".actions")||e.target.closest("a")) return;
           openComments(c);
         });
         list.appendChild(el);
@@ -325,7 +327,7 @@
       if(src){icon.src=src; icon.style.display="";} else {icon.style.display="none";}
     }
     function openDialog(c){
-      $("dialogTitle").textContent=c?"Edit course":"Add course"; $("editId").value=c?.id||""; $("courseName").value=c?.name||""; $("courseLocation").value=c?.location||""; $("courseStatus").value=c?.status||"Bucket item"; $("courseWindow").value=c?.window||""; $("courseNote").value=c?.note||""; $("courseAddedBy").value=c?(c.addedBy||""):myCharacter; $("courseFeatures").value=""; $("caddieResults").innerHTML=""; $("caddieStatus").textContent=""; $("featuresStatus").textContent=""; hideSuggestions(); courseMatches={}; updateAddedByIcon(); dialog.showModal();
+      $("dialogTitle").textContent=c?"Edit course":"Add course"; $("editId").value=c?.id||""; $("courseWebsite").value=c?.website||""; $("courseName").value=c?.name||""; $("courseLocation").value=c?.location||""; $("courseStatus").value=c?.status||"Bucket item"; $("courseWindow").value=c?.window||""; $("courseNote").value=c?.note||""; $("courseAddedBy").value=c?(c.addedBy||""):myCharacter; $("courseFeatures").value=""; $("caddieResults").innerHTML=""; $("caddieStatus").textContent=""; $("featuresStatus").textContent=""; hideSuggestions(); courseMatches={}; updateAddedByIcon(); dialog.showModal();
     }
     $("openAdd").onclick=()=>openDialog(); $("cancelDialog").onclick=()=>dialog.close();
     $("courseAddedBy").onchange=updateAddedByIcon;
@@ -382,6 +384,7 @@
     const suggestBox=$("courseSuggestions");
     function hideSuggestions(){ suggestBox.classList.remove("open"); suggestBox.innerHTML=""; }
     $("courseName").addEventListener("input", ()=>{
+      $("courseWebsite").value="";
       clearTimeout(courseSearchTimer);
       const q=$("courseName").value.trim();
       if(q.length<3){ hideSuggestions(); return }
@@ -433,6 +436,7 @@
         if(!$("courseLocation").value.trim() && (match.city||match.state)){
           $("courseLocation").value=[match.city,match.state].filter(Boolean).join(", ");
         }
+        if(data.website) $("courseWebsite").value=data.website;
         const rawDescription=data.description || [
           data.type && `${data.type} course`,
           data.holes && data.par && `${data.holes} holes, par ${data.par}`,
@@ -500,7 +504,7 @@
       e.preventDefault();
       const id=$("editId").value||crypto.randomUUID();
       const existing=courses.find(c=>c.id===id);
-      const payload={name:$("courseName").value.trim(),location:$("courseLocation").value.trim()||"Location TBD",status:$("courseStatus").value,window:$("courseWindow").value.trim()||"Date TBD",note:$("courseNote").value.trim()||"Pending questionable decisions.",addedBy:$("courseAddedBy").value||"",votes:existing?.votes??0};
+      const payload={name:$("courseName").value.trim(),location:$("courseLocation").value.trim()||"Location TBD",status:$("courseStatus").value,window:$("courseWindow").value.trim()||"Date TBD",note:$("courseNote").value.trim()||"Pending questionable decisions.",addedBy:$("courseAddedBy").value||"",website:$("courseWebsite").value.trim(),votes:existing?.votes??0};
       if(!payload.name)return;
       if(payload.status==="Next trip") await enforceSingleNextTrip(id);
       await setDoc(doc(db,"courses",id),payload);
