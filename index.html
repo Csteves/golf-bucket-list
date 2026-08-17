@@ -316,7 +316,7 @@
         const seenAt=parseInt(localStorage.getItem(`ndht_seen_${c.id}`)||"0",10);
         const hasNewComments=lastCommentAt>seenAt;
         const commentBadge=`<span${hasNewComments?' class="has-new"':""}>💬 ${c.commentCount||0}${hasNewComments?" •":""}</span>`;
-        const teesBtn=(c.tees&&c.tees.length)?`<button class="tiny" data-action="tees" data-id="${c.id}">⛳ Tees</button>`:"";
+        const teesBtn=maleTees(c).length?`<button class="tiny" data-action="tees" data-id="${c.id}">⛳ Tees</button>`:"";
         el.innerHTML=`<div class="course-top"><div><h2>${nameLabel}</h2><div class="location">${esc(c.location||"Location TBD")}</div></div><span class="pill ${statusClass(c.status)}">${esc(c.status)}</span></div><p class="note">“${esc(c.note||"Pending questionable decisions.")}”</p><div class="meta">${addedByBadge}<span>🗓 ${esc(c.window||"Date TBD")}</span><span>🔥 ${c.votes} votes</span>${commentBadge}</div><div class="bar"><span style="width:${Math.round(c.votes/max*100)}%"></span></div><div class="actions">${teesBtn}<button class="tiny${hasVoted?" primary":""}" data-action="vote" data-id="${c.id}"${voteAttr}>${voteLabel}</button><button class="tiny" data-action="advance" data-id="${c.id}">Advance status</button><button class="tiny" data-action="edit" data-id="${c.id}">Edit</button><button class="tiny danger" data-action="delete" data-id="${c.id}">Delete</button></div>`;
         el.addEventListener("click", e=>{
           if(e.target.closest(".actions")||e.target.closest("a")) return;
@@ -353,14 +353,15 @@
     $("courseAddedBy").onchange=updateAddedByIcon;
 
     const teesDialog=$("teesDialog");
+    function maleTees(c){ return (c.tees||[]).filter(t=>!t.gender||t.gender==="Male"); }
     function openTees(c){
-      const tees=(c.tees||[]).slice().sort((a,b)=>(b.yardage||0)-(a.yardage||0));
+      const tees=maleTees(c).sort((a,b)=>(b.yardage||0)-(a.yardage||0));
       $("teesDialogTitle").textContent=`${c.name} — Tees`;
       const teesList=$("teesList");
       teesList.innerHTML=tees.length?"":'<div class="sync-note">No tee data available.</div>';
       tees.forEach(t=>{
         const div=document.createElement("div"); div.className="tee-row";
-        div.innerHTML=`<strong>${esc(t.tee_name||"Tee")}</strong><span>${esc(t.gender||"")}</span><span>Par ${t.par??"–"}</span><span>${t.yardage??"–"} yds</span><span>Rating ${t.course_rating??"–"}</span><span>Slope ${t.slope??"–"}</span>`;
+        div.innerHTML=`<strong>${esc(t.tee_name||"Tee")}</strong><span>Par ${t.par??"–"}</span><span>${t.yardage??"–"} yds</span><span>Rating ${t.course_rating??"–"}</span><span>Slope ${t.slope??"–"}</span>`;
         teesList.appendChild(div);
       });
       teesDialog.showModal();
@@ -482,7 +483,8 @@
         }
         if(data.website) $("courseWebsite").value=data.website;
         if(Array.isArray(data.tees)&&data.tees.length){
-          $("courseTeesData").value=JSON.stringify(data.tees.map(t=>({tee_name:t.tee_name,gender:t.gender,course_rating:t.course_rating,slope:t.slope,par:t.par,yardage:t.yardage})));
+          const menTees=data.tees.filter(t=>!t.gender||t.gender==="Male");
+          $("courseTeesData").value=JSON.stringify(menTees.map(t=>({tee_name:t.tee_name,gender:t.gender,course_rating:t.course_rating,slope:t.slope,par:t.par,yardage:t.yardage})));
         }
         const rawDescription=data.description || [
           data.type && `${data.type} course`,
