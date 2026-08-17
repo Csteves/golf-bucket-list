@@ -176,12 +176,12 @@
       <h2 id="dialogTitle">Add course</h2>
       <div class="modal-grid">
         <input type="hidden" id="editId">
-        <label>Course name <input id="courseName" required placeholder="Example: Bandon Dunes"></label>
+        <label>Course name <input id="courseName" required placeholder="Example: Bandon Dunes" list="courseSuggestions" autocomplete="off"><datalist id="courseSuggestions"></datalist></label>
         <label>Location <input id="courseLocation" placeholder="City, state"></label>
         <label>Status <select id="courseStatus"><option>Bucket item</option><option>Next trip</option><option>Completed</option></select></label>
         <label>Trip window <input id="courseWindow" placeholder="Example: Summer 2027"></label>
         <label>Added by (character) <div class="addedby-row"><img id="addedByIcon" class="char-icon" src="" alt="" style="display:none"><select id="courseAddedBy"><option value="">— none —</option><option>The Par Hunter</option><option>The Brush Hunter</option><option>The Foreman</option><option>The Cougar Hunter</option></select></div></label>
-        <label>Course vibe / features <input id="courseFeatures" placeholder="water, bunkers, elevation, prestige..."></label>
+        <label>Course vibe / features <input id="courseFeatures" placeholder="water, bunkers, elevation, prestige..."> <span id="featuresStatus" class="sync-note"></span></label>
         <label>Inside joke / scouting report <textarea id="courseNote" rows="3" placeholder="Example: Bring bail money and extra balls."></textarea></label>
         <div>
           <button type="button" id="generateLine" class="tiny">🎙️ Generate line (Caddie)</button>
@@ -280,10 +280,54 @@
       if(src){icon.src=src; icon.style.display="";} else {icon.style.display="none";}
     }
     function openDialog(c){
-      $("dialogTitle").textContent=c?"Edit course":"Add course"; $("editId").value=c?.id||""; $("courseName").value=c?.name||""; $("courseLocation").value=c?.location||""; $("courseStatus").value=c?.status||"Bucket item"; $("courseWindow").value=c?.window||""; $("courseNote").value=c?.note||""; $("courseAddedBy").value=c?(c.addedBy||""):myCharacter; $("courseFeatures").value=""; $("caddieResults").innerHTML=""; $("caddieStatus").textContent=""; updateAddedByIcon(); dialog.showModal();
+      $("dialogTitle").textContent=c?"Edit course":"Add course"; $("editId").value=c?.id||""; $("courseName").value=c?.name||""; $("courseLocation").value=c?.location||""; $("courseStatus").value=c?.status||"Bucket item"; $("courseWindow").value=c?.window||""; $("courseNote").value=c?.note||""; $("courseAddedBy").value=c?(c.addedBy||""):myCharacter; $("courseFeatures").value=""; $("caddieResults").innerHTML=""; $("caddieStatus").textContent=""; $("featuresStatus").textContent=""; $("courseSuggestions").innerHTML=""; wikiSuggestions={}; updateAddedByIcon(); dialog.showModal();
     }
     $("openAdd").onclick=()=>openDialog(); $("cancelDialog").onclick=()=>dialog.close();
     $("courseAddedBy").onchange=updateAddedByIcon;
+
+    let wikiSuggestions={}, wikiSearchTimer=null;
+    $("courseName").addEventListener("input", ()=>{
+      clearTimeout(wikiSearchTimer);
+      const q=$("courseName").value.trim();
+      if(q.length<3){$("courseSuggestions").innerHTML=""; return}
+      wikiSearchTimer=setTimeout(()=>searchCourses(q), 350);
+    });
+    async function searchCourses(q){
+      try{
+        const resp=await fetch(`https://en.wikipedia.org/w/rest.php/v1/search/page?q=${encodeURIComponent(q+" golf course")}&limit=6`);
+        const data=await resp.json();
+        wikiSuggestions={};
+        const list=$("courseSuggestions"); list.innerHTML="";
+        (data.pages||[]).forEach(p=>{
+          wikiSuggestions[p.title.toLowerCase()]={key:p.key, description:p.description||""};
+          const opt=document.createElement("option"); opt.value=p.title; list.appendChild(opt);
+        });
+      }catch{ /* autocomplete is a nice-to-have — fail silently */ }
+    }
+    async function maybeFillFromWiki(){
+      const match=wikiSuggestions[$("courseName").value.trim().toLowerCase()];
+      if(!match || $("courseFeatures").value.trim()) return;
+      $("featuresStatus").textContent="Looking up course details…";
+      try{
+        const resp=await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(match.key)}`);
+        const data=await resp.json();
+        const extract=(data.extract||"").split(". ").slice(0,2).join(". ");
+        if(extract){
+          $("courseFeatures").value=extract;
+          $("featuresStatus").textContent="Filled from Wikipedia — edit freely.";
+        } else {
+          $("featuresStatus").textContent="";
+        }
+        if(!$("courseLocation").value.trim() && match.description){
+          const locMatch=match.description.match(/golf (?:course|resort|club)s? in (.+)/i);
+          if(locMatch) $("courseLocation").value=locMatch[1].replace(/\.$/,"");
+        }
+      }catch{
+        $("featuresStatus").textContent="";
+      }
+    }
+    $("courseName").addEventListener("change", maybeFillFromWiki);
+    $("courseName").addEventListener("blur", maybeFillFromWiki);
 
     $("generateLine").onclick=async()=>{
       const courseName=$("courseName").value.trim();
