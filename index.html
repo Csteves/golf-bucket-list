@@ -316,11 +316,15 @@
       try{
         // search/title does prefix matching (typing "bando" finds "Bandon...") — search/page is
         // full-text relevance search and needs most of the word typed before it ranks well.
-        const resp=await fetch(`https://en.wikipedia.org/w/rest.php/v1/search/title?q=${encodeURIComponent(q)}&limit=10`);
+        // Fetch a wide candidate pool (20) since a common prefix pulls in lots of unrelated
+        // pages before the golf course shows up, then filter down to golf-related ones only.
+        const resp=await fetch(`https://en.wikipedia.org/w/rest.php/v1/search/title?q=${encodeURIComponent(q)}&limit=20`);
         const data=await resp.json();
         wikiSuggestions={};
         const isGolfy=p=>/golf/i.test(p.description||"")||/golf/i.test(p.title||"");
-        const pages=(data.pages||[]).sort((a,b)=>(isGolfy(b)?1:0)-(isGolfy(a)?1:0)).slice(0,6);
+        const all=data.pages||[];
+        const golfOnly=all.filter(isGolfy);
+        const pages=(golfOnly.length?golfOnly:all).slice(0,6);
         if(!pages.length){ hideSuggestions(); return }
         suggestBox.innerHTML="";
         pages.forEach(p=>{
