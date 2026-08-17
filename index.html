@@ -90,7 +90,14 @@
         <label>Location <input id="courseLocation" placeholder="City, state"></label>
         <label>Status <select id="courseStatus"><option>Bucket item</option><option>Next trip</option><option>Completed</option></select></label>
         <label>Trip window <input id="courseWindow" placeholder="Example: Summer 2027"></label>
+        <label>Added by (character) <select id="courseAddedBy"><option value="">— none —</option><option>The Par Hunter</option><option>The Brush Hunter</option><option>The Foreman</option><option>The Cougar Hunter</option></select></label>
+        <label>Course vibe / features <input id="courseFeatures" placeholder="water, bunkers, elevation, prestige..."></label>
         <label>Inside joke / scouting report <textarea id="courseNote" rows="3" placeholder="Example: Bring bail money and extra balls."></textarea></label>
+        <div>
+          <button type="button" id="generateLine" class="tiny">🎙️ Generate line (Caddie)</button>
+          <div id="caddieStatus" class="sync-note"></div>
+          <div id="caddieResults" class="modal-grid"></div>
+        </div>
       </div>
       <div class="modal-actions"><button type="button" id="cancelDialog">Cancel</button><button class="primary" value="save">Save course</button></div>
     </form>
@@ -113,6 +120,8 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     const coursesCol = collection(db, "courses");
+
+    const CADDIE_URL = "https://no-handicap-caddie.no-handicap-tour.workers.dev";
 
     const starterCourses=[
       {id:"seeley",name:"Seeley Lake",location:"Seeley Lake, MT",status:"Completed",window:"Completed",votes:0,note:"First official proving ground. Rain tried to kill the vibe. Failed."},
@@ -156,9 +165,38 @@
     });
 
     function openDialog(c){
-      $("dialogTitle").textContent=c?"Edit course":"Add course"; $("editId").value=c?.id||""; $("courseName").value=c?.name||""; $("courseLocation").value=c?.location||""; $("courseStatus").value=c?.status||"Bucket item"; $("courseWindow").value=c?.window||""; $("courseNote").value=c?.note||""; dialog.showModal();
+      $("dialogTitle").textContent=c?"Edit course":"Add course"; $("editId").value=c?.id||""; $("courseName").value=c?.name||""; $("courseLocation").value=c?.location||""; $("courseStatus").value=c?.status||"Bucket item"; $("courseWindow").value=c?.window||""; $("courseNote").value=c?.note||""; $("courseAddedBy").value=""; $("courseFeatures").value=""; $("caddieResults").innerHTML=""; $("caddieStatus").textContent=""; dialog.showModal();
     }
     $("openAdd").onclick=()=>openDialog(); $("cancelDialog").onclick=()=>dialog.close();
+
+    $("generateLine").onclick=async()=>{
+      const courseName=$("courseName").value.trim();
+      const status=$("courseStatus").value;
+      if(!courseName){$("caddieStatus").textContent="Enter a course name first.";return}
+      const btn=$("generateLine"); btn.disabled=true; $("caddieStatus").textContent="Consulting the Caddie…"; $("caddieResults").innerHTML="";
+      try{
+        const resp=await fetch(CADDIE_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+          courseName, location:$("courseLocation").value.trim(), status,
+          addedBy:$("courseAddedBy").value, whyAdded:"", features:$("courseFeatures").value.trim()
+        })});
+        const data=await resp.json();
+        if(!resp.ok||data.error) throw new Error(data.error||`HTTP ${resp.status}`);
+        const lines=(data.text||"").split("\n").map(l=>l.trim()).filter(l=>/^\d+\./.test(l))
+          .map(l=>l.replace(/^\d+\.\s*(?:\*\*[^*]+\*\*:?\s*)?/,"").replace(/^["“]|["”]$/g,"").trim())
+          .filter(Boolean);
+        if(!lines.length){$("caddieStatus").textContent="No lines came back — try again.";return}
+        $("caddieStatus").textContent="Pick a line to use it as the note:";
+        lines.forEach(line=>{
+          const b=document.createElement("button"); b.type="button"; b.className="tiny"; b.style.textAlign="left"; b.textContent=line;
+          b.onclick=()=>{$("courseNote").value=line; $("caddieResults").innerHTML=""; $("caddieStatus").textContent="";};
+          $("caddieResults").appendChild(b);
+        });
+      }catch(err){
+        $("caddieStatus").textContent=`Caddie unavailable: ${err.message}`;
+      }finally{
+        btn.disabled=false;
+      }
+    };
     form.onsubmit=async e=>{
       e.preventDefault();
       const id=$("editId").value;
