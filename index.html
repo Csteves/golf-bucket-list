@@ -298,44 +298,47 @@
       if(src){icon.src=src; icon.style.display="";} else {icon.style.display="none";}
     }
     function openDialog(c){
-      $("dialogTitle").textContent=c?"Edit course":"Add course"; $("editId").value=c?.id||""; $("courseName").value=c?.name||""; $("courseLocation").value=c?.location||""; $("courseStatus").value=c?.status||"Bucket item"; $("courseWindow").value=c?.window||""; $("courseNote").value=c?.note||""; $("courseAddedBy").value=c?(c.addedBy||""):myCharacter; $("courseFeatures").value=""; $("caddieResults").innerHTML=""; $("caddieStatus").textContent=""; $("featuresStatus").textContent=""; hideSuggestions(); wikiSuggestions={}; updateAddedByIcon(); dialog.showModal();
+      $("dialogTitle").textContent=c?"Edit course":"Add course"; $("editId").value=c?.id||""; $("courseName").value=c?.name||""; $("courseLocation").value=c?.location||""; $("courseStatus").value=c?.status||"Bucket item"; $("courseWindow").value=c?.window||""; $("courseNote").value=c?.note||""; $("courseAddedBy").value=c?(c.addedBy||""):myCharacter; $("courseFeatures").value=""; $("caddieResults").innerHTML=""; $("caddieStatus").textContent=""; $("featuresStatus").textContent=""; hideSuggestions(); courseMatches={}; updateAddedByIcon(); dialog.showModal();
     }
     $("openAdd").onclick=()=>openDialog(); $("cancelDialog").onclick=()=>dialog.close();
     $("courseAddedBy").onchange=updateAddedByIcon;
 
-    let wikiSuggestions={}, wikiSearchTimer=null;
+    let courseMatches={}, courseSearchTimer=null;
     const suggestBox=$("courseSuggestions");
     function hideSuggestions(){ suggestBox.classList.remove("open"); suggestBox.innerHTML=""; }
     $("courseName").addEventListener("input", ()=>{
-      clearTimeout(wikiSearchTimer);
+      clearTimeout(courseSearchTimer);
       const q=$("courseName").value.trim();
       if(q.length<3){ hideSuggestions(); return }
-      wikiSearchTimer=setTimeout(()=>searchCourses(q), 350);
+      courseSearchTimer=setTimeout(()=>searchCourses(q), 350);
     });
     async function searchCourses(q){
       try{
-        // search/title does prefix matching (typing "bando" finds "Bandon...") — search/page is
-        // full-text relevance search and needs most of the word typed before it ranks well.
-        // Fetch a wide candidate pool (20) since a common prefix pulls in lots of unrelated
-        // pages before the golf course shows up, then filter down to golf-related ones only.
-        const resp=await fetch(`https://en.wikipedia.org/w/rest.php/v1/search/title?q=${encodeURIComponent(q)}&limit=20`);
+        // OpenGolfAPI (api.opengolfapi.org) — free, keyless, US-only golf course database.
+        // Every result is an actual course (no genre noise like a general-purpose search
+        // engine). It sorts alphabetically rather than by relevance, so a generous limit
+        // plus a client-side prefix-first sort keeps exact matches at the top.
+        const resp=await fetch(`https://api.opengolfapi.org/api/v1/courses/search?q=${encodeURIComponent(q)}&limit=25`);
         const data=await resp.json();
-        wikiSuggestions={};
-        const isGolfy=p=>/golf/i.test(p.description||"")||/golf/i.test(p.title||"");
-        const all=data.pages||[];
-        const golfOnly=all.filter(isGolfy);
-        const pages=(golfOnly.length?golfOnly:all).slice(0,6);
-        if(!pages.length){ hideSuggestions(); return }
+        courseMatches={};
+        const qLower=q.toLowerCase();
+        const courses=(data.courses||[]).sort((a,b)=>{
+          const aPrefix=(a.course_name||"").toLowerCase().startsWith(qLower)?0:1;
+          const bPrefix=(b.course_name||"").toLowerCase().startsWith(qLower)?0:1;
+          return aPrefix-bPrefix;
+        }).slice(0,6);
+        if(!courses.length){ hideSuggestions(); return }
         suggestBox.innerHTML="";
-        pages.forEach(p=>{
-          wikiSuggestions[p.title.toLowerCase()]={key:p.key, description:p.description||""};
+        courses.forEach(c=>{
+          const place=[c.city,c.state].filter(Boolean).join(", ");
+          courseMatches[c.course_name.toLowerCase()]={id:c.id, city:c.city||"", state:c.state||""};
           const item=document.createElement("div");
           item.className="suggest-item";
-          item.innerHTML=`${esc(p.title)}${p.description?`<small>${esc(p.description)}</small>`:""}`;
+          item.innerHTML=`${esc(c.course_name)}${place?`<small>${esc(place)}</small>`:""}`;
           item.onclick=()=>{
-            $("courseName").value=p.title;
+            $("courseName").value=c.course_name;
             hideSuggestions();
-            maybeFillFromWiki();
+            maybeFillCourseDetails();
           };
           suggestBox.appendChild(item);
         });
@@ -345,42 +348,46 @@
     document.addEventListener("click", e=>{
       if(!e.target.closest(".autocomplete-wrap")) hideSuggestions();
     });
-    async function maybeFillFromWiki(){
-      const match=wikiSuggestions[$("courseName").value.trim().toLowerCase()];
+    async function maybeFillCourseDetails(){
+      const match=courseMatches[$("courseName").value.trim().toLowerCase()];
       if(!match || $("courseFeatures").value.trim()) return;
       $("featuresStatus").textContent="Looking up course details…";
       try{
-        const resp=await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(match.key)}`);
+        const resp=await fetch(`https://api.opengolfapi.org/api/v1/courses/${encodeURIComponent(match.id)}`);
         const data=await resp.json();
-        const extract=(data.extract||"").split(". ").slice(0,2).join(". ");
-        if(!$("courseLocation").value.trim() && match.description){
-          const locMatch=match.description.match(/golf (?:course|resort|club)s? in (.+)/i);
-          if(locMatch) $("courseLocation").value=locMatch[1].replace(/\.$/,"");
+        if(!$("courseLocation").value.trim() && (match.city||match.state)){
+          $("courseLocation").value=[match.city,match.state].filter(Boolean).join(", ");
         }
-        if(!extract){ $("featuresStatus").textContent=""; return; }
+        const rawDescription=data.description || [
+          data.type && `${data.type} course`,
+          data.holes && data.par && `${data.holes} holes, par ${data.par}`,
+          data.architect && `designed by ${data.architect}`,
+          data.year_built && `built ${data.year_built}`,
+        ].filter(Boolean).join(", ");
+        if(!rawDescription){ $("featuresStatus").textContent=""; return; }
         $("featuresStatus").textContent="Asking the Caddie for the vibe…";
         try{
           const vibeResp=await fetch(CADDIE_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-            mode:"vibe", courseName:$("courseName").value.trim(), rawDescription:extract
+            mode:"vibe", courseName:$("courseName").value.trim(), rawDescription
           })});
           const vibeData=await vibeResp.json();
           if(vibeResp.ok && vibeData.text){
             $("courseFeatures").value=vibeData.text.trim();
             $("featuresStatus").textContent="Filled by the Caddie — edit freely.";
           } else {
-            $("courseFeatures").value=extract;
-            $("featuresStatus").textContent="Caddie unavailable — used raw Wikipedia summary.";
+            $("courseFeatures").value=rawDescription;
+            $("featuresStatus").textContent="Caddie unavailable — used raw course data.";
           }
         }catch{
-          $("courseFeatures").value=extract;
-          $("featuresStatus").textContent="Caddie unavailable — used raw Wikipedia summary.";
+          $("courseFeatures").value=rawDescription;
+          $("featuresStatus").textContent="Caddie unavailable — used raw course data.";
         }
       }catch{
         $("featuresStatus").textContent="";
       }
     }
-    $("courseName").addEventListener("change", maybeFillFromWiki);
-    $("courseName").addEventListener("blur", maybeFillFromWiki);
+    $("courseName").addEventListener("change", maybeFillCourseDetails);
+    $("courseName").addEventListener("blur", maybeFillCourseDetails);
 
     $("generateLine").onclick=async()=>{
       const courseName=$("courseName").value.trim();
