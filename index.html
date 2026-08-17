@@ -159,7 +159,7 @@
           <button class="filter" data-filter="Next trip">Next trip</button>
           <button class="filter" data-filter="Bucket item">Bucket item</button>
         </div>
-        <select id="sortBy"><option value="votes">Sort by votes</option><option value="status">Sort by status</option><option value="name">Sort by name</option></select>
+        <select id="sortBy"><option value="status" selected>Sort by status</option><option value="votes">Sort by votes</option><option value="name">Sort by name</option></select>
       </div>
       <div id="courseList" class="grid course-list"></div>
     </section>
@@ -199,7 +199,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
     import {
-      getFirestore, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, increment
+      getFirestore, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, increment, arrayUnion, arrayRemove
     } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -247,14 +247,14 @@
       renderIdentityBadge();
     };
 
-    let courses=[], filter="All", sortBy="votes", seeded=false;
+    let courses=[], filter="All", sortBy="status", seeded=false;
     const $=id=>document.getElementById(id), list=$("courseList"), dialog=$("courseDialog"), form=$("courseForm");
     const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
     const statusClass=s=>s==="Completed"?"status-Completed":s==="Next trip"?"status-Next":"status-Bucket";
     const order=s=>({"Next trip":0,"Bucket item":1,"Completed":2}[s]??3);
 
     function render(){
-      let visible=courses.filter(c=>filter==="All"||c.status===filter).sort((a,b)=>sortBy==="name"?a.name.localeCompare(b.name):sortBy==="status"?order(a.status)-order(b.status):b.votes-a.votes);
+      let visible=courses.filter(c=>filter==="All"||c.status===filter).sort((a,b)=>sortBy==="name"?a.name.localeCompare(b.name):sortBy==="status"?(order(a.status)-order(b.status))||(b.votes-a.votes):b.votes-a.votes);
       list.innerHTML=visible.length?"":'<div class="card">No courses here yet. Apparently the committee showed restraint. Weird.</div>';
       const max=Math.max(1,...courses.map(c=>c.votes));
       visible.forEach(c=>{
@@ -262,8 +262,12 @@
         el.style.setProperty("--accent-soft",c.status==="Completed"?"rgba(61,107,61,.22)":c.status==="Next trip"?"rgba(215,168,76,.25)":"rgba(78,135,166,.18)");
         const addedByIcon=CHAR_ICONS[c.addedBy]?`<img class="char-icon mini-icon" src="${CHAR_ICONS[c.addedBy]}" alt="">`:"";
         const addedByBadge=c.addedBy?`<span>${addedByIcon}${esc(c.addedBy)}</span>`:"";
-        const voteDisabled=c.status==="Completed";
-        el.innerHTML=`<div class="course-top"><div><h2>${esc(c.name)}</h2><div class="location">${esc(c.location||"Location TBD")}</div></div><span class="pill ${statusClass(c.status)}">${esc(c.status)}</span></div><p class="note">“${esc(c.note||"Pending questionable decisions.")}”</p><div class="meta">${addedByBadge}<span>🗓 ${esc(c.window||"Date TBD")}</span><span>🔥 ${c.votes} votes</span></div><div class="bar"><span style="width:${Math.round(c.votes/max*100)}%"></span></div><div class="actions"><button class="tiny" data-action="vote" data-id="${c.id}"${voteDisabled?' disabled title="Already conquered — no more votes needed."':''}>Vote +1</button><button class="tiny" data-action="advance" data-id="${c.id}">Advance status</button><button class="tiny" data-action="edit" data-id="${c.id}">Edit</button><button class="tiny danger" data-action="delete" data-id="${c.id}">Delete</button></div>`;
+        const voters=c.voters||[];
+        const hasVoted=myCharacter && voters.includes(myCharacter);
+        const voteDisabled=c.status==="Completed"||!myCharacter;
+        const voteAttr=voteDisabled?` disabled title="${c.status==="Completed"?"Already conquered — no more votes needed.":"Log in to vote."}"`:` title="${hasVoted?"Click to remove your vote":"Vote for this course"}"`;
+        const voteLabel=hasVoted?"★ Voted":"Vote +1";
+        el.innerHTML=`<div class="course-top"><div><h2>${esc(c.name)}</h2><div class="location">${esc(c.location||"Location TBD")}</div></div><span class="pill ${statusClass(c.status)}">${esc(c.status)}</span></div><p class="note">“${esc(c.note||"Pending questionable decisions.")}”</p><div class="meta">${addedByBadge}<span>🗓 ${esc(c.window||"Date TBD")}</span><span>🔥 ${c.votes} votes</span></div><div class="bar"><span style="width:${Math.round(c.votes/max*100)}%"></span></div><div class="actions"><button class="tiny${hasVoted?" primary":""}" data-action="vote" data-id="${c.id}"${voteAttr}>${voteLabel}</button><button class="tiny" data-action="advance" data-id="${c.id}">Advance status</button><button class="tiny" data-action="edit" data-id="${c.id}">Edit</button><button class="tiny danger" data-action="delete" data-id="${c.id}">Delete</button></div>`;
         list.appendChild(el);
       });
       $("completedCount").textContent=courses.filter(c=>c.status==="Completed").length;
@@ -379,20 +383,36 @@
         btn.disabled=false;
       }
     };
+    async function enforceSingleNextTrip(exceptId){
+      const others=courses.filter(x=>x.status==="Next trip"&&x.id!==exceptId);
+      await Promise.all(others.map(x=>updateDoc(doc(db,"courses",x.id),{status:"Bucket item"})));
+    }
     form.onsubmit=async e=>{
       e.preventDefault();
-      const id=$("editId").value;
+      const id=$("editId").value||crypto.randomUUID();
       const existing=courses.find(c=>c.id===id);
       const payload={name:$("courseName").value.trim(),location:$("courseLocation").value.trim()||"Location TBD",status:$("courseStatus").value,window:$("courseWindow").value.trim()||"Date TBD",note:$("courseNote").value.trim()||"Pending questionable decisions.",addedBy:$("courseAddedBy").value||"",votes:existing?.votes??0};
       if(!payload.name)return;
-      await setDoc(doc(db,"courses",id||crypto.randomUUID()),payload);
+      if(payload.status==="Next trip") await enforceSingleNextTrip(id);
+      await setDoc(doc(db,"courses",id),payload);
       dialog.close();
     };
     list.onclick=async e=>{
       const b=e.target.closest("button"); if(!b)return;
       const c=courses.find(x=>x.id===b.dataset.id); if(!c)return;
-      if(b.dataset.action==="vote") await updateDoc(doc(db,"courses",c.id),{votes:increment(1)});
-      if(b.dataset.action==="advance") await updateDoc(doc(db,"courses",c.id),{status:c.status==="Bucket item"?"Next trip":c.status==="Next trip"?"Completed":"Bucket item"});
+      if(b.dataset.action==="vote"){
+        if(!myCharacter) return;
+        const hasVoted=(c.voters||[]).includes(myCharacter);
+        await updateDoc(doc(db,"courses",c.id),{
+          voters: hasVoted?arrayRemove(myCharacter):arrayUnion(myCharacter),
+          votes: increment(hasVoted?-1:1)
+        });
+      }
+      if(b.dataset.action==="advance"){
+        const nextStatus=c.status==="Bucket item"?"Next trip":c.status==="Next trip"?"Completed":"Bucket item";
+        if(nextStatus==="Next trip") await enforceSingleNextTrip(c.id);
+        await updateDoc(doc(db,"courses",c.id),{status:nextStatus});
+      }
       if(b.dataset.action==="edit"){openDialog(c);return}
       if(b.dataset.action==="delete"){if(!confirm(`Delete ${c.name}? This is how traditions die.`))return; await deleteDoc(doc(db,"courses",c.id));}
     };
