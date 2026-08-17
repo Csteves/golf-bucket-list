@@ -36,6 +36,3 @@ it, and the course's vibe. It returns a funny, character-specific line — paste
 that into the **Inside joke / scouting report** field when you add the course
 on the site.
 
-## Notes
-
-The "Export list" button still downloads the current shared list as JSON, useful for backups.

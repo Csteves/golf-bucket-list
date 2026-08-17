@@ -24,7 +24,7 @@
     button:hover{border-color:rgba(215,168,76,.65);background:rgba(215,168,76,.12)} .primary{background:var(--gold);color:#17120a;border-color:transparent;font-weight:800}.danger{background:rgba(180,72,61,.14);border-color:rgba(180,72,61,.45)}.tiny{padding:7px 10px;font-size:13px}
     button:disabled{opacity:.35;cursor:not-allowed}button:disabled:hover{border-color:var(--border);background:rgba(255,255,255,.06)}
     .hero-actions,.toolbar,.filters,.actions,.meta{display:flex;flex-wrap:wrap;gap:10px}.hero-actions{margin-top:24px}.toolbar{justify-content:space-between;margin-bottom:18px}
-    .grid{display:grid;gap:16px}.stats{grid-template-columns:repeat(4,1fr);margin:18px 0}.course-list{grid-template-columns:repeat(3,1fr)}
+    .grid{display:grid;gap:16px}.stats{grid-template-columns:repeat(3,1fr);margin:18px 0}.course-list{grid-template-columns:repeat(3,1fr)}
     .card{border-radius:18px;padding:18px}.stat-label{color:var(--muted);font-size:13px;text-transform:uppercase;letter-spacing:.08em}.stat-value{font-size:30px;font-weight:900;margin-top:5px}.stat-note,.location,.meta,footer{color:var(--muted);font-size:13px}
     .filter.active{background:var(--gold);color:#17120a;font-weight:800}
     .course{position:relative;overflow:hidden;min-height:255px;display:flex;flex-direction:column;gap:12px}
@@ -139,7 +139,6 @@
       <div class="hero-actions">
         <button class="primary" id="openAdd">Add a course</button>
         <button id="randomPick">Spin the bad-decision wheel</button>
-        <button id="exportJson">Export list</button>
       </div>
       <p class="sync-note">🔄 Synced live for everyone with this link.</p>
     </header>
@@ -148,7 +147,6 @@
       <div class="card"><div class="stat-label">Completed</div><div class="stat-value" id="completedCount">0</div><div class="stat-note">Courses conquered</div></div>
       <div class="card"><div class="stat-label">Next trip</div><div class="stat-value" id="nextTrip">TBD</div><div class="stat-note">Current target</div></div>
       <div class="card"><div class="stat-label">Bucket list</div><div class="stat-value" id="totalCount">0</div><div class="stat-note">Bad ideas pending</div></div>
-      <div class="card"><div class="stat-label">Votes</div><div class="stat-value" id="voteCount">0</div><div class="stat-note">Degenerates committee</div></div>
     </section>
 
     <section class="card">
@@ -272,8 +270,7 @@
       });
       $("completedCount").textContent=courses.filter(c=>c.status==="Completed").length;
       $("nextTrip").textContent=(courses.find(c=>c.status==="Next trip")?.name||"TBD").replace(" Resort Course","");
-      $("totalCount").textContent=courses.length;
-      $("voteCount").textContent=courses.reduce((s,c)=>s+c.votes,0);
+      $("totalCount").textContent=courses.filter(c=>c.status!=="Completed").length;
       document.querySelectorAll(".filter").forEach(b=>b.classList.toggle("active",b.dataset.filter===filter));
     }
 
@@ -419,7 +416,6 @@
     document.querySelectorAll(".filter").forEach(b=>b.onclick=()=>{filter=b.dataset.filter;render()});
     $("sortBy").onchange=e=>{sortBy=e.target.value;render()};
     $("randomPick").onclick=()=>{const candidates=courses.filter(c=>c.status!=="Completed"); if(!candidates.length)return alert("Everything is completed. Either you are legends, or the list is too weak."); const pick=candidates[Math.floor(Math.random()*candidates.length)]; alert(`The committee of bad decisions selects: ${pick.name}\n\n${pick.note}`)};
-    $("exportJson").onclick=()=>{const blob=new Blob([JSON.stringify(courses,null,2)],{type:"application/json"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download="no-handicap-golf-tour.json"; a.click(); URL.revokeObjectURL(url)};
   </script>
 </body>
 </html>
