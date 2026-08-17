@@ -59,6 +59,9 @@ Ask for or infer:
 - Why they added it, if known
 - Any course feature: water, rough, bunkers, elevation, island green, desert, trees, prestige, difficulty, etc.
 
+Destination-first rule:
+Every line must be tailored to this specific course, not just the character. Pull in the course name, location, or a real feature (terrain, water, prestige, difficulty, reputation) and fuse it with the character's angle. A line that would work unchanged for a different course at the same status is not acceptable — rewrite it so it could only be describing this destination. Character brand lines ("No handicap til I die," etc.) are seasoning, not the whole joke; don't just paste a stock line and swap the course name in around it.
+
 Output format:
 Provide 5 options:
 1. Best default line
@@ -67,7 +70,7 @@ Provide 5 options:
 4. Character-specific roast line
 5. Short webpage-card line
 
-Each option should be one sentence unless the user asks for more.
+Each option should be one sentence unless the user asks for more, and each must reference the destination per the rule above.
 
 Always associate the line with the character who added it. If the user gives the real person but not the alter ego, ask which identity to use.
 
@@ -130,7 +133,10 @@ Note: Floating green. Floating egos. The Par Hunter already has a logo for it.
 ### Tobacco Road
 Status: Bucket item.
 Location: Sanford, NC.
-Note: A bucket-list fever dream where scorecards go to die and excuses become literature.`;
+Note: A bucket-list fever dream where scorecards go to die and excuses become literature.
+
+### The Olympic Club
+Added by: The Brush Hunter.`;
 
 const SYSTEM_PROMPT = `${INSTRUCTIONS}\n\n---\n\nReference knowledge doc:\n\n${KNOWLEDGE}`;
 

@@ -39,6 +39,10 @@
     .char-icon{width:32px;height:32px;object-fit:contain;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:10px;padding:3px;vertical-align:middle;flex-shrink:0}
     .char-icon.tiny-icon{width:20px;height:20px;border-radius:7px;padding:2px}
     .char-icon.mini-icon{width:16px;height:16px;border-radius:5px;padding:1px;margin-right:4px}
+    .char-icon.badge-icon{width:38px;height:38px;border-radius:50%;padding:4px}
+    .header-top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+    .identity-badge{display:flex;align-items:center;gap:8px;padding:5px 12px 5px 5px;border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,.05);font-size:14px}
+    .identity-badge strong{color:var(--gold)}
     .character-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
     .character-head strong{margin-bottom:0}
     .addedby-row{display:flex;align-items:center;gap:8px}
@@ -123,7 +127,10 @@
   </script>
   <main class="wrap">
     <header>
-      <span class="eyebrow">⛳ Highly unofficial committee record</span>
+      <div class="header-top">
+        <span class="eyebrow">⛳ Highly unofficial committee record</span>
+        <div id="whoAmI"></div>
+      </div>
       <h1>The No Handicap<br>Golf Tour</h1>
       <p class="lead"><em>A bucket list of courses, bad decisions, and unfinished business.</em></p>
       <div class="hero-actions">
@@ -132,7 +139,6 @@
         <button id="exportJson">Export list</button>
       </div>
       <p class="sync-note">🔄 Synced live for everyone with this link.</p>
-      <p class="sync-note" id="whoAmI"></p>
     </header>
 
     <section class="grid stats">
@@ -223,8 +229,8 @@
     const myCharacter = localStorage.getItem("ndht_character") || "";
     if (myCharacter) {
       const who = document.getElementById("whoAmI");
-      const icon = CHAR_ICONS[myCharacter] ? `<img class="char-icon tiny-icon" src="${CHAR_ICONS[myCharacter]}" alt="">` : "";
-      who.innerHTML = `${icon} Posing as: <strong>${myCharacter}</strong> · <button type="button" id="switchIdentity" class="tiny" style="padding:2px 8px">Not you?</button>`;
+      const icon = CHAR_ICONS[myCharacter] ? `<img class="char-icon badge-icon" src="${CHAR_ICONS[myCharacter]}" alt="">` : "";
+      who.innerHTML = `<div class="identity-badge">${icon} <span>Posing as <strong>${myCharacter}</strong></span> <button type="button" id="switchIdentity" class="tiny" style="padding:2px 8px">Not you?</button></div>`;
       document.getElementById("switchIdentity").onclick = () => {
         localStorage.removeItem("ndht_gate");
         localStorage.removeItem("ndht_character");
