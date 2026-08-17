@@ -240,6 +240,7 @@
     const CADDIE_URL = "https://no-handicap-caddie.no-handicap-tour.workers.dev";
 
     function notify(payload){
+      if(myCharacter==="The Par Hunter") return;
       fetch(`${CADDIE_URL}/notify`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}).catch(()=>{});
     }
 
