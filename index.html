@@ -49,6 +49,13 @@
     .character-head strong{margin-bottom:0}
     .addedby-row{display:flex;align-items:center;gap:8px}
     .addedby-row select{flex:1}
+    .autocomplete-wrap{position:relative}
+    .suggest-list{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:20;background:#141812;border:1px solid var(--border);border-radius:12px;max-height:240px;overflow-y:auto;box-shadow:var(--shadow)}
+    .suggest-list.open{display:block}
+    .suggest-item{padding:9px 12px;cursor:pointer;font-size:14px;border-bottom:1px solid var(--border)}
+    .suggest-item:last-child{border-bottom:none}
+    .suggest-item:hover{background:rgba(215,168,76,.15)}
+    .suggest-item small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
     body.locked .wrap{display:none}
     #gate{position:fixed;inset:0;z-index:999;display:none;align-items:center;justify-content:center;padding:20px;background:radial-gradient(circle at 20% 10%,rgba(215,168,76,.15),transparent 32rem),radial-gradient(circle at 85% 90%,rgba(61,107,61,.2),transparent 30rem),linear-gradient(180deg,#090a08,#0d100c)}
     body.locked #gate{display:flex}
@@ -177,7 +184,7 @@
       <h2 id="dialogTitle">Add course</h2>
       <div class="modal-grid">
         <input type="hidden" id="editId">
-        <label>Course name <input id="courseName" required placeholder="Example: Bandon Dunes" list="courseSuggestions" autocomplete="off"><datalist id="courseSuggestions"></datalist></label>
+        <label>Course name <div class="autocomplete-wrap"><input id="courseName" required placeholder="Example: Bandon Dunes" autocomplete="off"><div id="courseSuggestions" class="suggest-list"></div></div></label>
         <label>Location <input id="courseLocation" placeholder="City, state"></label>
         <label>Status <select id="courseStatus"><option>Bucket item</option><option>Next trip</option><option>Completed</option></select></label>
         <label>Trip window <input id="courseWindow" placeholder="Example: Summer 2027"></label>
@@ -291,16 +298,18 @@
       if(src){icon.src=src; icon.style.display="";} else {icon.style.display="none";}
     }
     function openDialog(c){
-      $("dialogTitle").textContent=c?"Edit course":"Add course"; $("editId").value=c?.id||""; $("courseName").value=c?.name||""; $("courseLocation").value=c?.location||""; $("courseStatus").value=c?.status||"Bucket item"; $("courseWindow").value=c?.window||""; $("courseNote").value=c?.note||""; $("courseAddedBy").value=c?(c.addedBy||""):myCharacter; $("courseFeatures").value=""; $("caddieResults").innerHTML=""; $("caddieStatus").textContent=""; $("featuresStatus").textContent=""; $("courseSuggestions").innerHTML=""; wikiSuggestions={}; updateAddedByIcon(); dialog.showModal();
+      $("dialogTitle").textContent=c?"Edit course":"Add course"; $("editId").value=c?.id||""; $("courseName").value=c?.name||""; $("courseLocation").value=c?.location||""; $("courseStatus").value=c?.status||"Bucket item"; $("courseWindow").value=c?.window||""; $("courseNote").value=c?.note||""; $("courseAddedBy").value=c?(c.addedBy||""):myCharacter; $("courseFeatures").value=""; $("caddieResults").innerHTML=""; $("caddieStatus").textContent=""; $("featuresStatus").textContent=""; hideSuggestions(); wikiSuggestions={}; updateAddedByIcon(); dialog.showModal();
     }
     $("openAdd").onclick=()=>openDialog(); $("cancelDialog").onclick=()=>dialog.close();
     $("courseAddedBy").onchange=updateAddedByIcon;
 
     let wikiSuggestions={}, wikiSearchTimer=null;
+    const suggestBox=$("courseSuggestions");
+    function hideSuggestions(){ suggestBox.classList.remove("open"); suggestBox.innerHTML=""; }
     $("courseName").addEventListener("input", ()=>{
       clearTimeout(wikiSearchTimer);
       const q=$("courseName").value.trim();
-      if(q.length<3){$("courseSuggestions").innerHTML=""; return}
+      if(q.length<3){ hideSuggestions(); return }
       wikiSearchTimer=setTimeout(()=>searchCourses(q), 350);
     });
     async function searchCourses(q){
@@ -308,13 +317,27 @@
         const resp=await fetch(`https://en.wikipedia.org/w/rest.php/v1/search/page?q=${encodeURIComponent(q+" golf course")}&limit=6`);
         const data=await resp.json();
         wikiSuggestions={};
-        const list=$("courseSuggestions"); list.innerHTML="";
-        (data.pages||[]).forEach(p=>{
+        const pages=data.pages||[];
+        if(!pages.length){ hideSuggestions(); return }
+        suggestBox.innerHTML="";
+        pages.forEach(p=>{
           wikiSuggestions[p.title.toLowerCase()]={key:p.key, description:p.description||""};
-          const opt=document.createElement("option"); opt.value=p.title; list.appendChild(opt);
+          const item=document.createElement("div");
+          item.className="suggest-item";
+          item.innerHTML=`${esc(p.title)}${p.description?`<small>${esc(p.description)}</small>`:""}`;
+          item.onclick=()=>{
+            $("courseName").value=p.title;
+            hideSuggestions();
+            maybeFillFromWiki();
+          };
+          suggestBox.appendChild(item);
         });
-      }catch{ /* autocomplete is a nice-to-have — fail silently */ }
+        suggestBox.classList.add("open");
+      }catch{ hideSuggestions(); /* autocomplete is a nice-to-have — fail silently */ }
     }
+    document.addEventListener("click", e=>{
+      if(!e.target.closest(".autocomplete-wrap")) hideSuggestions();
+    });
     async function maybeFillFromWiki(){
       const match=wikiSuggestions[$("courseName").value.trim().toLowerCase()];
       if(!match || $("courseFeatures").value.trim()) return;
