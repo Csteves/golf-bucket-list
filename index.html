@@ -312,15 +312,27 @@
         const resp=await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(match.key)}`);
         const data=await resp.json();
         const extract=(data.extract||"").split(". ").slice(0,2).join(". ");
-        if(extract){
-          $("courseFeatures").value=extract;
-          $("featuresStatus").textContent="Filled from Wikipedia — edit freely.";
-        } else {
-          $("featuresStatus").textContent="";
-        }
         if(!$("courseLocation").value.trim() && match.description){
           const locMatch=match.description.match(/golf (?:course|resort|club)s? in (.+)/i);
           if(locMatch) $("courseLocation").value=locMatch[1].replace(/\.$/,"");
+        }
+        if(!extract){ $("featuresStatus").textContent=""; return; }
+        $("featuresStatus").textContent="Asking the Caddie for the vibe…";
+        try{
+          const vibeResp=await fetch(CADDIE_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+            mode:"vibe", courseName:$("courseName").value.trim(), rawDescription:extract
+          })});
+          const vibeData=await vibeResp.json();
+          if(vibeResp.ok && vibeData.text){
+            $("courseFeatures").value=vibeData.text.trim();
+            $("featuresStatus").textContent="Filled by the Caddie — edit freely.";
+          } else {
+            $("courseFeatures").value=extract;
+            $("featuresStatus").textContent="Caddie unavailable — used raw Wikipedia summary.";
+          }
+        }catch{
+          $("courseFeatures").value=extract;
+          $("featuresStatus").textContent="Caddie unavailable — used raw Wikipedia summary.";
         }
       }catch{
         $("featuresStatus").textContent="";

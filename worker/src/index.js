@@ -178,24 +178,42 @@ export default {
       });
     }
 
-    const { courseName, location, status, addedBy, whyAdded, features } = body || {};
-    if (!courseName || !status) {
-      return new Response(JSON.stringify({ error: "courseName and status are required" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
-      });
-    }
+    const mode = body?.mode === "vibe" ? "vibe" : "generate_line";
 
-    const userMessage = [
-      `Course name: ${courseName}`,
-      location && `Location: ${location}`,
-      `Status: ${status}`,
-      addedBy && `Added by: ${addedBy}`,
-      whyAdded && `Why they added it: ${whyAdded}`,
-      features && `Course features: ${features}`,
-    ]
-      .filter(Boolean)
-      .join("\n");
+    let userMessage;
+    if (mode === "vibe") {
+      const { courseName, rawDescription } = body || {};
+      if (!courseName || !rawDescription) {
+        return new Response(JSON.stringify({ error: "courseName and rawDescription are required" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+        });
+      }
+      userMessage = [
+        `Task: distill real information about "${courseName}" into a short "course vibe" phrase (8-15 words) capturing terrain, difficulty, prestige, or standout features — written in your voice as the Caddie, not encyclopedic.`,
+        `Return ONLY the phrase itself. No quotes, no numbering, no extra commentary.`,
+        ``,
+        `Source info: ${rawDescription}`,
+      ].join("\n");
+    } else {
+      const { courseName, location, status, addedBy, whyAdded, features } = body || {};
+      if (!courseName || !status) {
+        return new Response(JSON.stringify({ error: "courseName and status are required" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+        });
+      }
+      userMessage = [
+        `Course name: ${courseName}`,
+        location && `Location: ${location}`,
+        `Status: ${status}`,
+        addedBy && `Added by: ${addedBy}`,
+        whyAdded && `Why they added it: ${whyAdded}`,
+        features && `Course features: ${features}`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
 
     try {
       const resp = await fetch("https://api.openai.com/v1/responses", {
