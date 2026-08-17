@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>The No Handicap Golf Tour</title>
   <meta name="description" content="A bucket list of courses, bad decisions, and unfinished business." />
+  <link rel="icon" href="images/web/favicon.png">
+  <link rel="apple-touch-icon" href="images/web/apple-touch-icon.png">
   <style>
     :root {
       --bg:#0d100c; --panel:#171b14; --text:#f7f1df; --muted:#c7bfa8;
@@ -34,6 +36,12 @@
     dialog{width:min(620px,calc(100% - 28px));border:1px solid var(--border);border-radius:20px;background:#141812;color:var(--text);padding:0;box-shadow:var(--shadow)}dialog::backdrop{background:rgba(0,0,0,.7)}.modal{padding:20px}.modal-grid{display:grid;gap:12px}.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
     footer{text-align:center;margin-top:28px}
     .sync-note{color:var(--muted);font-size:12px;margin-top:10px}
+    .char-icon{width:32px;height:32px;object-fit:contain;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:10px;padding:3px;vertical-align:middle;flex-shrink:0}
+    .char-icon.tiny-icon{width:20px;height:20px;border-radius:7px;padding:2px}
+    .character-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+    .character-head strong{margin-bottom:0}
+    .addedby-row{display:flex;align-items:center;gap:8px}
+    .addedby-row select{flex:1}
     body.locked .wrap{display:none}
     #gate{position:fixed;inset:0;z-index:999;display:none;align-items:center;justify-content:center;padding:20px;background:radial-gradient(circle at 20% 10%,rgba(215,168,76,.15),transparent 32rem),radial-gradient(circle at 85% 90%,rgba(61,107,61,.2),transparent 30rem),linear-gradient(180deg,#090a08,#0d100c)}
     body.locked #gate{display:flex}
@@ -147,10 +155,10 @@
     </section>
 
     <section class="grid characters">
-      <div class="character"><strong>The Par Hunter</strong><span>New SIM2 Max. One 425-yard legend. No need to fact-check cart path assistance.</span></div>
-      <div class="character"><strong>The Brush Hunter</strong><span>Fairways fear him. Brushes remember him. Clubs file for emotional damages.</span></div>
-      <div class="character"><strong>The Foreman</strong><span>Money inside 100. Off the tee, local golfers should maintain situational awareness.</span></div>
-      <div class="character"><strong>The Cougar Hunter</strong><span>Charm rating: dangerous. Most effective near par-19 watering holes and patio seating.</span></div>
+      <div class="character"><div class="character-head"><img class="char-icon" src="images/web/theparhunter.png" alt=""><strong>The Par Hunter</strong></div><span>New SIM2 Max. One 425-yard legend. No need to fact-check cart path assistance.</span></div>
+      <div class="character"><div class="character-head"><img class="char-icon" src="images/web/thebrushhunter.png" alt=""><strong>The Brush Hunter</strong></div><span>Fairways fear him. Brushes remember him. Clubs file for emotional damages.</span></div>
+      <div class="character"><div class="character-head"><img class="char-icon" src="images/web/theforeman.png" alt=""><strong>The Foreman</strong></div><span>Money inside 100. Off the tee, local golfers should maintain situational awareness.</span></div>
+      <div class="character"><div class="character-head"><img class="char-icon" src="images/web/thecougarhunter.png" alt=""><strong>The Cougar Hunter</strong></div><span>Charm rating: dangerous. Most effective near par-19 watering holes and patio seating.</span></div>
     </section>
 
     <footer>The No Handicap Golf Tour — pretending every trip is “about the course” since Seeley.</footer>
@@ -165,7 +173,7 @@
         <label>Location <input id="courseLocation" placeholder="City, state"></label>
         <label>Status <select id="courseStatus"><option>Bucket item</option><option>Next trip</option><option>Completed</option></select></label>
         <label>Trip window <input id="courseWindow" placeholder="Example: Summer 2027"></label>
-        <label>Added by (character) <select id="courseAddedBy"><option value="">— none —</option><option>The Par Hunter</option><option>The Brush Hunter</option><option>The Foreman</option><option>The Cougar Hunter</option></select></label>
+        <label>Added by (character) <div class="addedby-row"><img id="addedByIcon" class="char-icon" src="" alt="" style="display:none"><select id="courseAddedBy"><option value="">— none —</option><option>The Par Hunter</option><option>The Brush Hunter</option><option>The Foreman</option><option>The Cougar Hunter</option></select></div></label>
         <label>Course vibe / features <input id="courseFeatures" placeholder="water, bunkers, elevation, prestige..."></label>
         <label>Inside joke / scouting report <textarea id="courseNote" rows="3" placeholder="Example: Bring bail money and extra balls."></textarea></label>
         <div>
@@ -204,10 +212,18 @@
       {id:"tobacco",name:"Tobacco Road",location:"Sanford, NC",status:"Bucket item",window:"Someday / when the group chat gets reckless",votes:0,note:"A bucket-list fever dream where scorecards go to die and excuses become literature."}
     ];
 
+    const CHAR_ICONS = {
+      "The Par Hunter": "images/web/theparhunter.png",
+      "The Brush Hunter": "images/web/thebrushhunter.png",
+      "The Foreman": "images/web/theforeman.png",
+      "The Cougar Hunter": "images/web/thecougarhunter.png"
+    };
+
     const myCharacter = localStorage.getItem("ndht_character") || "";
     if (myCharacter) {
       const who = document.getElementById("whoAmI");
-      who.innerHTML = `🕶️ Posing as: <strong>${myCharacter}</strong> · <button type="button" id="switchIdentity" class="tiny" style="padding:2px 8px">Not you?</button>`;
+      const icon = CHAR_ICONS[myCharacter] ? `<img class="char-icon tiny-icon" src="${CHAR_ICONS[myCharacter]}" alt="">` : "";
+      who.innerHTML = `${icon} Posing as: <strong>${myCharacter}</strong> · <button type="button" id="switchIdentity" class="tiny" style="padding:2px 8px">Not you?</button>`;
       document.getElementById("switchIdentity").onclick = () => {
         localStorage.removeItem("ndht_gate");
         localStorage.removeItem("ndht_character");
@@ -250,10 +266,15 @@
       list.innerHTML=`<div class="card">Could not reach the shared list (${esc(err.message)}). Check your connection and reload.</div>`;
     });
 
+    function updateAddedByIcon(){
+      const icon=$("addedByIcon"), src=CHAR_ICONS[$("courseAddedBy").value];
+      if(src){icon.src=src; icon.style.display="";} else {icon.style.display="none";}
+    }
     function openDialog(c){
-      $("dialogTitle").textContent=c?"Edit course":"Add course"; $("editId").value=c?.id||""; $("courseName").value=c?.name||""; $("courseLocation").value=c?.location||""; $("courseStatus").value=c?.status||"Bucket item"; $("courseWindow").value=c?.window||""; $("courseNote").value=c?.note||""; $("courseAddedBy").value=c?"":myCharacter; $("courseFeatures").value=""; $("caddieResults").innerHTML=""; $("caddieStatus").textContent=""; dialog.showModal();
+      $("dialogTitle").textContent=c?"Edit course":"Add course"; $("editId").value=c?.id||""; $("courseName").value=c?.name||""; $("courseLocation").value=c?.location||""; $("courseStatus").value=c?.status||"Bucket item"; $("courseWindow").value=c?.window||""; $("courseNote").value=c?.note||""; $("courseAddedBy").value=c?"":myCharacter; $("courseFeatures").value=""; $("caddieResults").innerHTML=""; $("caddieStatus").textContent=""; updateAddedByIcon(); dialog.showModal();
     }
     $("openAdd").onclick=()=>openDialog(); $("cancelDialog").onclick=()=>dialog.close();
+    $("courseAddedBy").onchange=updateAddedByIcon;
 
     $("generateLine").onclick=async()=>{
       const courseName=$("courseName").value.trim();
