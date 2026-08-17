@@ -36,6 +36,9 @@
     .comment p{margin:0;color:var(--text);line-height:1.4}
     .meta .has-new{color:var(--gold);font-weight:800}
     .comment-delete{padding:2px 7px;font-size:11px;margin-left:6px}
+    .tee-row{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;padding:9px 12px;border:1px solid var(--border);border-radius:12px;background:rgba(0,0,0,.16);font-size:13px}
+    .tee-row strong{color:var(--gold)}
+    .tee-row span{color:var(--muted)}
     .course::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 100% 0%,var(--accent-soft),transparent 18rem);pointer-events:none}.course>*{position:relative}
     .course-top{display:flex;justify-content:space-between;gap:12px;align-items:start}.course h2{margin:0;font-size:24px;line-height:1;letter-spacing:-.03em}.course h2 a{color:inherit;text-decoration-color:rgba(247,241,223,.4)}.course h2 a:hover{text-decoration-color:var(--gold)}.location{margin-top:6px}
     .pill{border-radius:999px;padding:6px 9px;font-size:12px;font-weight:800;white-space:nowrap}.status-Completed{background:rgba(61,107,61,.32);color:#d9ffd7}.status-Next{background:rgba(215,168,76,.28);color:#ffe5aa}.status-Bucket{background:rgba(78,135,166,.25);color:#d8f2ff}
@@ -194,6 +197,7 @@
       <div class="modal-grid">
         <input type="hidden" id="editId">
         <input type="hidden" id="courseWebsite">
+        <input type="hidden" id="courseTeesData">
         <label>Course name <div class="autocomplete-wrap"><input id="courseName" required placeholder="Example: Bandon Dunes" autocomplete="off"><div id="courseSuggestions" class="suggest-list"></div></div></label>
         <label>Location <input id="courseLocation" placeholder="City, state"></label>
         <label>Status <select id="courseStatus"><option>Bucket item</option><option>Next trip</option><option>Completed</option></select></label>
@@ -222,6 +226,14 @@
     </div>
   </dialog>
 
+  <dialog id="teesDialog">
+    <div class="modal">
+      <h2 id="teesDialogTitle">Tees</h2>
+      <div id="teesList" class="modal-grid" style="margin-bottom:14px"></div>
+      <div class="modal-actions"><button type="button" id="closeTees">Close</button></div>
+    </div>
+  </dialog>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
     import {
@@ -243,13 +255,8 @@
 
     const CADDIE_URL = "https://no-handicap-caddie.no-handicap-tour.workers.dev";
 
-    function isMuted(){
-      const stored=localStorage.getItem(`ndht_mute_${myCharacter}`);
-      if(stored!==null) return stored==="1";
-      return myCharacter==="The Par Hunter";
-    }
     function notify(payload){
-      if(isMuted()) return;
+      if(myCharacter==="The Par Hunter") return;
       fetch(`${CADDIE_URL}/notify`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}).catch(()=>{});
     }
 
@@ -271,12 +278,7 @@
       const who = document.getElementById("whoAmI");
       if (!myCharacter) { who.innerHTML = ""; return; }
       const icon = CHAR_ICONS[myCharacter] ? `<img class="id-icon" src="${CHAR_ICONS[myCharacter]}" alt="">` : "";
-      const muted = isMuted();
-      who.innerHTML = `<div class="identity-badge">${icon}Posing as <strong>${myCharacter}</strong><button type="button" id="muteToggle" class="tiny" title="${muted?"Notifications muted — click to unmute":"Notifications on — click to mute"}">${muted?"🔕":"🔔"}</button><button type="button" id="switchIdentity" class="tiny">Not you?</button></div>`;
-      document.getElementById("muteToggle").onclick = () => {
-        localStorage.setItem(`ndht_mute_${myCharacter}`, muted?"0":"1");
-        renderIdentityBadge();
-      };
+      who.innerHTML = `<div class="identity-badge">${icon}Posing as <strong>${myCharacter}</strong><button type="button" id="switchIdentity" class="tiny">Not you?</button></div>`;
       document.getElementById("switchIdentity").onclick = () => {
         localStorage.removeItem("ndht_gate");
         localStorage.removeItem("ndht_character");
@@ -314,7 +316,8 @@
         const seenAt=parseInt(localStorage.getItem(`ndht_seen_${c.id}`)||"0",10);
         const hasNewComments=lastCommentAt>seenAt;
         const commentBadge=`<span${hasNewComments?' class="has-new"':""}>💬 ${c.commentCount||0}${hasNewComments?" •":""}</span>`;
-        el.innerHTML=`<div class="course-top"><div><h2>${nameLabel}</h2><div class="location">${esc(c.location||"Location TBD")}</div></div><span class="pill ${statusClass(c.status)}">${esc(c.status)}</span></div><p class="note">“${esc(c.note||"Pending questionable decisions.")}”</p><div class="meta">${addedByBadge}<span>🗓 ${esc(c.window||"Date TBD")}</span><span>🔥 ${c.votes} votes</span>${commentBadge}</div><div class="bar"><span style="width:${Math.round(c.votes/max*100)}%"></span></div><div class="actions"><button class="tiny${hasVoted?" primary":""}" data-action="vote" data-id="${c.id}"${voteAttr}>${voteLabel}</button><button class="tiny" data-action="advance" data-id="${c.id}">Advance status</button><button class="tiny" data-action="edit" data-id="${c.id}">Edit</button><button class="tiny danger" data-action="delete" data-id="${c.id}">Delete</button></div>`;
+        const teesBtn=(c.tees&&c.tees.length)?`<button class="tiny" data-action="tees" data-id="${c.id}">⛳ Tees</button>`:"";
+        el.innerHTML=`<div class="course-top"><div><h2>${nameLabel}</h2><div class="location">${esc(c.location||"Location TBD")}</div></div><span class="pill ${statusClass(c.status)}">${esc(c.status)}</span></div><p class="note">“${esc(c.note||"Pending questionable decisions.")}”</p><div class="meta">${addedByBadge}<span>🗓 ${esc(c.window||"Date TBD")}</span><span>🔥 ${c.votes} votes</span>${commentBadge}</div><div class="bar"><span style="width:${Math.round(c.votes/max*100)}%"></span></div><div class="actions">${teesBtn}<button class="tiny${hasVoted?" primary":""}" data-action="vote" data-id="${c.id}"${voteAttr}>${voteLabel}</button><button class="tiny" data-action="advance" data-id="${c.id}">Advance status</button><button class="tiny" data-action="edit" data-id="${c.id}">Edit</button><button class="tiny danger" data-action="delete" data-id="${c.id}">Delete</button></div>`;
         el.addEventListener("click", e=>{
           if(e.target.closest(".actions")||e.target.closest("a")) return;
           openComments(c);
@@ -344,10 +347,25 @@
       if(src){icon.src=src; icon.style.display="";} else {icon.style.display="none";}
     }
     function openDialog(c){
-      $("dialogTitle").textContent=c?"Edit course":"Add course"; $("editId").value=c?.id||""; $("courseWebsite").value=c?.website||""; $("courseName").value=c?.name||""; $("courseLocation").value=c?.location||""; $("courseStatus").value=c?.status||"Bucket item"; $("courseWindow").value=c?.window||""; $("courseNote").value=c?.note||""; $("courseAddedBy").value=c?(c.addedBy||""):myCharacter; $("courseFeatures").value=""; $("caddieResults").innerHTML=""; $("caddieStatus").textContent=""; $("featuresStatus").textContent=""; hideSuggestions(); courseMatches={}; updateAddedByIcon(); dialog.showModal();
+      $("dialogTitle").textContent=c?"Edit course":"Add course"; $("editId").value=c?.id||""; $("courseWebsite").value=c?.website||""; $("courseTeesData").value=c?.tees?JSON.stringify(c.tees):""; $("courseName").value=c?.name||""; $("courseLocation").value=c?.location||""; $("courseStatus").value=c?.status||"Bucket item"; $("courseWindow").value=c?.window||""; $("courseNote").value=c?.note||""; $("courseAddedBy").value=c?(c.addedBy||""):myCharacter; $("courseFeatures").value=""; $("caddieResults").innerHTML=""; $("caddieStatus").textContent=""; $("featuresStatus").textContent=""; hideSuggestions(); courseMatches={}; updateAddedByIcon(); dialog.showModal();
     }
     $("openAdd").onclick=()=>openDialog(); $("cancelDialog").onclick=()=>dialog.close();
     $("courseAddedBy").onchange=updateAddedByIcon;
+
+    const teesDialog=$("teesDialog");
+    function openTees(c){
+      const tees=(c.tees||[]).slice().sort((a,b)=>(b.yardage||0)-(a.yardage||0));
+      $("teesDialogTitle").textContent=`${c.name} — Tees`;
+      const teesList=$("teesList");
+      teesList.innerHTML=tees.length?"":'<div class="sync-note">No tee data available.</div>';
+      tees.forEach(t=>{
+        const div=document.createElement("div"); div.className="tee-row";
+        div.innerHTML=`<strong>${esc(t.tee_name||"Tee")}</strong><span>${esc(t.gender||"")}</span><span>Par ${t.par??"–"}</span><span>${t.yardage??"–"} yds</span><span>Rating ${t.course_rating??"–"}</span><span>Slope ${t.slope??"–"}</span>`;
+        teesList.appendChild(div);
+      });
+      teesDialog.showModal();
+    }
+    $("closeTees").onclick=()=>teesDialog.close();
 
     let commentUnsub=null, commentCourseId=null;
     const commentDialog=$("commentDialog"), commentList=$("commentList"), commentForm=$("commentForm"), commentText=$("commentText"), postCommentBtn=$("postComment");
@@ -410,6 +428,7 @@
     function hideSuggestions(){ suggestBox.classList.remove("open"); suggestBox.innerHTML=""; }
     $("courseName").addEventListener("input", ()=>{
       $("courseWebsite").value="";
+      $("courseTeesData").value="";
       clearTimeout(courseSearchTimer);
       const q=$("courseName").value.trim();
       if(q.length<3){ hideSuggestions(); return }
@@ -462,6 +481,9 @@
           $("courseLocation").value=[match.city,match.state].filter(Boolean).join(", ");
         }
         if(data.website) $("courseWebsite").value=data.website;
+        if(Array.isArray(data.tees)&&data.tees.length){
+          $("courseTeesData").value=JSON.stringify(data.tees.map(t=>({tee_name:t.tee_name,gender:t.gender,course_rating:t.course_rating,slope:t.slope,par:t.par,yardage:t.yardage})));
+        }
         const rawDescription=data.description || [
           data.type && `${data.type} course`,
           data.holes && data.par && `${data.holes} holes, par ${data.par}`,
@@ -529,7 +551,9 @@
       e.preventDefault();
       const id=$("editId").value||crypto.randomUUID();
       const existing=courses.find(c=>c.id===id);
-      const payload={name:$("courseName").value.trim(),location:$("courseLocation").value.trim()||"Location TBD",status:$("courseStatus").value,window:$("courseWindow").value.trim()||"Date TBD",note:$("courseNote").value.trim()||"Pending questionable decisions.",addedBy:$("courseAddedBy").value||"",website:$("courseWebsite").value.trim(),votes:existing?.votes??0};
+      let tees=[];
+      try{ tees=JSON.parse($("courseTeesData").value||"[]"); }catch{ tees=[]; }
+      const payload={name:$("courseName").value.trim(),location:$("courseLocation").value.trim()||"Location TBD",status:$("courseStatus").value,window:$("courseWindow").value.trim()||"Date TBD",note:$("courseNote").value.trim()||"Pending questionable decisions.",addedBy:$("courseAddedBy").value||"",website:$("courseWebsite").value.trim(),tees,votes:existing?.votes??0};
       if(!payload.name)return;
       if(payload.status==="Next trip") await enforceSingleNextTrip(id);
       await setDoc(doc(db,"courses",id),payload);
@@ -553,6 +577,7 @@
         if(nextStatus==="Next trip") await enforceSingleNextTrip(c.id);
         await updateDoc(doc(db,"courses",c.id),{status:nextStatus});
       }
+      if(b.dataset.action==="tees"){openTees(c);return}
       if(b.dataset.action==="edit"){openDialog(c);return}
       if(b.dataset.action==="delete"){if(!confirm(`Delete ${c.name}? This is how traditions die.`))return; await deleteDoc(doc(db,"courses",c.id));}
     };
