@@ -173,6 +173,13 @@ function notifySubjectAndText(body) {
       text: `${voter || "Someone"} just voted for "${courseName}" on the No Handicap Tour list.`,
     };
   }
+  if (body?.type === "new_comment") {
+    const { courseName, author, text } = body;
+    return {
+      subject: `New comment on ${courseName}`,
+      text: `${author || "Someone"} commented on "${courseName}":\n\n${text || ""}`,
+    };
+  }
   return null;
 }
 

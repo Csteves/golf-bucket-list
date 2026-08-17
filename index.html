@@ -27,7 +27,13 @@
     .grid{display:grid;gap:16px}.stats{grid-template-columns:repeat(3,1fr);margin:18px 0}.course-list{grid-template-columns:repeat(3,1fr)}
     .card{border-radius:18px;padding:18px}.stat-label{color:var(--muted);font-size:13px;text-transform:uppercase;letter-spacing:.08em}.stat-value{font-size:30px;font-weight:900;margin-top:5px}.stat-note,.location,.meta,footer{color:var(--muted);font-size:13px}
     .filter.active{background:var(--gold);color:#17120a;font-weight:800}
-    .course{position:relative;overflow:hidden;min-height:255px;display:flex;flex-direction:column;gap:12px}
+    .course{position:relative;overflow:hidden;min-height:255px;display:flex;flex-direction:column;gap:12px;cursor:pointer}
+    .course:hover{border-color:rgba(215,168,76,.4)}
+    .comment{padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:rgba(0,0,0,.16)}
+    .comment-head{display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:13px;color:var(--muted)}
+    .comment-head strong{color:var(--gold)}
+    .comment-time{margin-left:auto;font-size:11px}
+    .comment p{margin:0;color:var(--text);line-height:1.4}
     .course::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 100% 0%,var(--accent-soft),transparent 18rem);pointer-events:none}.course>*{position:relative}
     .course-top{display:flex;justify-content:space-between;gap:12px;align-items:start}.course h2{margin:0;font-size:24px;line-height:1;letter-spacing:-.03em}.location{margin-top:6px}
     .pill{border-radius:999px;padding:6px 9px;font-size:12px;font-weight:800;white-space:nowrap}.status-Completed{background:rgba(61,107,61,.32);color:#d9ffd7}.status-Next{background:rgba(215,168,76,.28);color:#ffe5aa}.status-Bucket{background:rgba(78,135,166,.25);color:#d8f2ff}
@@ -201,10 +207,22 @@
     </form>
   </dialog>
 
+  <dialog id="commentDialog">
+    <div class="modal">
+      <h2 id="commentDialogTitle">Comments</h2>
+      <div id="commentList" class="modal-grid" style="margin-bottom:14px"></div>
+      <form id="commentForm" class="modal-grid">
+        <textarea id="commentText" rows="2" placeholder="Say something..."></textarea>
+        <div class="modal-actions"><button type="button" id="closeComments">Close</button><button class="primary" type="submit" id="postComment">Post</button></div>
+      </form>
+    </div>
+  </dialog>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
     import {
-      getFirestore, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, increment, arrayUnion, arrayRemove
+      getFirestore, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, increment, arrayUnion, arrayRemove,
+      addDoc, query, orderBy, serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -276,7 +294,11 @@
         const voteDisabled=c.status==="Completed"||!myCharacter;
         const voteAttr=voteDisabled?` disabled title="${c.status==="Completed"?"Already conquered — no more votes needed.":"Log in to vote."}"`:` title="${hasVoted?"Click to remove your vote":"Vote for this course"}"`;
         const voteLabel=hasVoted?"★ Voted":"Vote +1";
-        el.innerHTML=`<div class="course-top"><div><h2>${esc(c.name)}</h2><div class="location">${esc(c.location||"Location TBD")}</div></div><span class="pill ${statusClass(c.status)}">${esc(c.status)}</span></div><p class="note">“${esc(c.note||"Pending questionable decisions.")}”</p><div class="meta">${addedByBadge}<span>🗓 ${esc(c.window||"Date TBD")}</span><span>🔥 ${c.votes} votes</span></div><div class="bar"><span style="width:${Math.round(c.votes/max*100)}%"></span></div><div class="actions"><button class="tiny${hasVoted?" primary":""}" data-action="vote" data-id="${c.id}"${voteAttr}>${voteLabel}</button><button class="tiny" data-action="advance" data-id="${c.id}">Advance status</button><button class="tiny" data-action="edit" data-id="${c.id}">Edit</button><button class="tiny danger" data-action="delete" data-id="${c.id}">Delete</button></div>`;
+        el.innerHTML=`<div class="course-top"><div><h2>${esc(c.name)}</h2><div class="location">${esc(c.location||"Location TBD")}</div></div><span class="pill ${statusClass(c.status)}">${esc(c.status)}</span></div><p class="note">“${esc(c.note||"Pending questionable decisions.")}”</p><div class="meta">${addedByBadge}<span>🗓 ${esc(c.window||"Date TBD")}</span><span>🔥 ${c.votes} votes</span><span>💬 ${c.commentCount||0}</span></div><div class="bar"><span style="width:${Math.round(c.votes/max*100)}%"></span></div><div class="actions"><button class="tiny${hasVoted?" primary":""}" data-action="vote" data-id="${c.id}"${voteAttr}>${voteLabel}</button><button class="tiny" data-action="advance" data-id="${c.id}">Advance status</button><button class="tiny" data-action="edit" data-id="${c.id}">Edit</button><button class="tiny danger" data-action="delete" data-id="${c.id}">Delete</button></div>`;
+        el.addEventListener("click", e=>{
+          if(e.target.closest(".actions")) return;
+          openComments(c);
+        });
         list.appendChild(el);
       });
       $("completedCount").textContent=courses.filter(c=>c.status==="Completed").length;
@@ -306,6 +328,54 @@
     }
     $("openAdd").onclick=()=>openDialog(); $("cancelDialog").onclick=()=>dialog.close();
     $("courseAddedBy").onchange=updateAddedByIcon;
+
+    let commentUnsub=null, commentCourseId=null;
+    const commentDialog=$("commentDialog"), commentList=$("commentList"), commentForm=$("commentForm"), commentText=$("commentText"), postCommentBtn=$("postComment");
+    function timeAgo(ts){
+      if(!ts?.toDate) return "";
+      const diffMs=Date.now()-ts.toDate().getTime();
+      const mins=Math.round(diffMs/60000);
+      if(mins<1) return "just now";
+      if(mins<60) return `${mins}m ago`;
+      const hrs=Math.round(mins/60);
+      if(hrs<24) return `${hrs}h ago`;
+      const days=Math.round(hrs/24);
+      if(days<7) return `${days}d ago`;
+      return ts.toDate().toLocaleDateString();
+    }
+    function openComments(c){
+      commentCourseId=c.id;
+      $("commentDialogTitle").textContent=`${c.name} — Comments`;
+      commentText.value="";
+      commentText.disabled=!myCharacter;
+      postCommentBtn.disabled=!myCharacter;
+      commentText.placeholder=myCharacter?"Say something...":"Log in to post.";
+      if(commentUnsub) commentUnsub();
+      const q=query(collection(db,"courses",c.id,"comments"), orderBy("createdAt"));
+      commentUnsub=onSnapshot(q, snap=>{
+        const comments=snap.docs.map(d=>d.data());
+        commentList.innerHTML=comments.length?"":'<div class="sync-note">No comments yet — say something.</div>';
+        comments.forEach(cm=>{
+          const icon=CHAR_ICONS[cm.author]?`<img class="char-icon mini-icon" src="${CHAR_ICONS[cm.author]}" alt="">`:"";
+          const div=document.createElement("div"); div.className="comment";
+          div.innerHTML=`<div class="comment-head">${icon}<strong>${esc(cm.author||"Unknown")}</strong><span class="comment-time">${timeAgo(cm.createdAt)}</span></div><p>${esc(cm.text)}</p>`;
+          commentList.appendChild(div);
+        });
+      });
+      commentDialog.showModal();
+    }
+    commentDialog.addEventListener("close", ()=>{ if(commentUnsub){ commentUnsub(); commentUnsub=null; } });
+    $("closeComments").onclick=()=>commentDialog.close();
+    commentForm.onsubmit=async e=>{
+      e.preventDefault();
+      const text=commentText.value.trim();
+      if(!text||!myCharacter||!commentCourseId) return;
+      const courseId=commentCourseId, course=courses.find(x=>x.id===courseId);
+      commentText.value="";
+      await addDoc(collection(db,"courses",courseId,"comments"),{author:myCharacter,text,createdAt:serverTimestamp()});
+      await updateDoc(doc(db,"courses",courseId),{commentCount:increment(1)});
+      notify({type:"new_comment",courseName:course?.name||"",author:myCharacter,text});
+    };
 
     let courseMatches={}, courseSearchTimer=null;
     const suggestBox=$("courseSuggestions");
