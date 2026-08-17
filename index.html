@@ -34,6 +34,8 @@
     .comment-head strong{color:var(--gold)}
     .comment-time{margin-left:auto;font-size:11px}
     .comment p{margin:0;color:var(--text);line-height:1.4}
+    .meta .has-new{color:var(--gold);font-weight:800}
+    .comment-delete{padding:2px 7px;font-size:11px;margin-left:6px}
     .course::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 100% 0%,var(--accent-soft),transparent 18rem);pointer-events:none}.course>*{position:relative}
     .course-top{display:flex;justify-content:space-between;gap:12px;align-items:start}.course h2{margin:0;font-size:24px;line-height:1;letter-spacing:-.03em}.course h2 a{color:inherit;text-decoration-color:rgba(247,241,223,.4)}.course h2 a:hover{text-decoration-color:var(--gold)}.location{margin-top:6px}
     .pill{border-radius:999px;padding:6px 9px;font-size:12px;font-weight:800;white-space:nowrap}.status-Completed{background:rgba(61,107,61,.32);color:#d9ffd7}.status-Next{background:rgba(215,168,76,.28);color:#ffe5aa}.status-Bucket{background:rgba(78,135,166,.25);color:#d8f2ff}
@@ -170,6 +172,7 @@
           <button class="filter" data-filter="Next trip">Next trip</button>
           <button class="filter" data-filter="Bucket item">Bucket item</button>
         </div>
+        <select id="addedByFilter"><option value="All" selected>All contributors</option><option>The Par Hunter</option><option>The Brush Hunter</option><option>The Foreman</option><option>The Cougar Hunter</option></select>
         <select id="sortBy"><option value="status" selected>Sort by status</option><option value="votes">Sort by votes</option><option value="name">Sort by name</option></select>
       </div>
       <div id="courseList" class="grid course-list"></div>
@@ -240,8 +243,13 @@
 
     const CADDIE_URL = "https://no-handicap-caddie.no-handicap-tour.workers.dev";
 
+    function isMuted(){
+      const stored=localStorage.getItem(`ndht_mute_${myCharacter}`);
+      if(stored!==null) return stored==="1";
+      return myCharacter==="The Par Hunter";
+    }
     function notify(payload){
-      if(myCharacter==="The Par Hunter") return;
+      if(isMuted()) return;
       fetch(`${CADDIE_URL}/notify`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}).catch(()=>{});
     }
 
@@ -263,7 +271,12 @@
       const who = document.getElementById("whoAmI");
       if (!myCharacter) { who.innerHTML = ""; return; }
       const icon = CHAR_ICONS[myCharacter] ? `<img class="id-icon" src="${CHAR_ICONS[myCharacter]}" alt="">` : "";
-      who.innerHTML = `<div class="identity-badge">${icon}Posing as <strong>${myCharacter}</strong><button type="button" id="switchIdentity" class="tiny">Not you?</button></div>`;
+      const muted = isMuted();
+      who.innerHTML = `<div class="identity-badge">${icon}Posing as <strong>${myCharacter}</strong><button type="button" id="muteToggle" class="tiny" title="${muted?"Notifications muted — click to unmute":"Notifications on — click to mute"}">${muted?"🔕":"🔔"}</button><button type="button" id="switchIdentity" class="tiny">Not you?</button></div>`;
+      document.getElementById("muteToggle").onclick = () => {
+        localStorage.setItem(`ndht_mute_${myCharacter}`, muted?"0":"1");
+        renderIdentityBadge();
+      };
       document.getElementById("switchIdentity").onclick = () => {
         localStorage.removeItem("ndht_gate");
         localStorage.removeItem("ndht_character");
@@ -276,14 +289,14 @@
       renderIdentityBadge();
     };
 
-    let courses=[], filter="All", sortBy="status", seeded=false;
+    let courses=[], filter="All", addedByFilter="All", sortBy="status", seeded=false;
     const $=id=>document.getElementById(id), list=$("courseList"), dialog=$("courseDialog"), form=$("courseForm");
     const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
     const statusClass=s=>s==="Completed"?"status-Completed":s==="Next trip"?"status-Next":"status-Bucket";
     const order=s=>({"Next trip":0,"Bucket item":1,"Completed":2}[s]??3);
 
     function render(){
-      let visible=courses.filter(c=>filter==="All"||c.status===filter).sort((a,b)=>sortBy==="name"?a.name.localeCompare(b.name):sortBy==="status"?(order(a.status)-order(b.status))||(b.votes-a.votes):b.votes-a.votes);
+      let visible=courses.filter(c=>(filter==="All"||c.status===filter)&&(addedByFilter==="All"||c.addedBy===addedByFilter)).sort((a,b)=>sortBy==="name"?a.name.localeCompare(b.name):sortBy==="status"?(order(a.status)-order(b.status))||(b.votes-a.votes):b.votes-a.votes);
       list.innerHTML=visible.length?"":'<div class="card">No courses here yet. Apparently the committee showed restraint. Weird.</div>';
       const max=Math.max(1,...courses.map(c=>c.votes));
       visible.forEach(c=>{
@@ -297,7 +310,11 @@
         const voteAttr=voteDisabled?` disabled title="${c.status==="Completed"?"Already conquered — no more votes needed.":"Log in to vote."}"`:` title="${hasVoted?"Click to remove your vote":"Vote for this course"}"`;
         const voteLabel=hasVoted?"★ Voted":"Vote +1";
         const nameLabel=/^https?:\/\//i.test(c.website||"")?`<a href="${esc(c.website)}" target="_blank" rel="noopener noreferrer">${esc(c.name)}</a>`:esc(c.name);
-        el.innerHTML=`<div class="course-top"><div><h2>${nameLabel}</h2><div class="location">${esc(c.location||"Location TBD")}</div></div><span class="pill ${statusClass(c.status)}">${esc(c.status)}</span></div><p class="note">“${esc(c.note||"Pending questionable decisions.")}”</p><div class="meta">${addedByBadge}<span>🗓 ${esc(c.window||"Date TBD")}</span><span>🔥 ${c.votes} votes</span><span>💬 ${c.commentCount||0}</span></div><div class="bar"><span style="width:${Math.round(c.votes/max*100)}%"></span></div><div class="actions"><button class="tiny${hasVoted?" primary":""}" data-action="vote" data-id="${c.id}"${voteAttr}>${voteLabel}</button><button class="tiny" data-action="advance" data-id="${c.id}">Advance status</button><button class="tiny" data-action="edit" data-id="${c.id}">Edit</button><button class="tiny danger" data-action="delete" data-id="${c.id}">Delete</button></div>`;
+        const lastCommentAt=c.lastCommentAt?.toMillis?.()||0;
+        const seenAt=parseInt(localStorage.getItem(`ndht_seen_${c.id}`)||"0",10);
+        const hasNewComments=lastCommentAt>seenAt;
+        const commentBadge=`<span${hasNewComments?' class="has-new"':""}>💬 ${c.commentCount||0}${hasNewComments?" •":""}</span>`;
+        el.innerHTML=`<div class="course-top"><div><h2>${nameLabel}</h2><div class="location">${esc(c.location||"Location TBD")}</div></div><span class="pill ${statusClass(c.status)}">${esc(c.status)}</span></div><p class="note">“${esc(c.note||"Pending questionable decisions.")}”</p><div class="meta">${addedByBadge}<span>🗓 ${esc(c.window||"Date TBD")}</span><span>🔥 ${c.votes} votes</span>${commentBadge}</div><div class="bar"><span style="width:${Math.round(c.votes/max*100)}%"></span></div><div class="actions"><button class="tiny${hasVoted?" primary":""}" data-action="vote" data-id="${c.id}"${voteAttr}>${voteLabel}</button><button class="tiny" data-action="advance" data-id="${c.id}">Advance status</button><button class="tiny" data-action="edit" data-id="${c.id}">Edit</button><button class="tiny danger" data-action="delete" data-id="${c.id}">Delete</button></div>`;
         el.addEventListener("click", e=>{
           if(e.target.closest(".actions")||e.target.closest("a")) return;
           openComments(c);
@@ -348,6 +365,7 @@
     }
     function openComments(c){
       commentCourseId=c.id;
+      localStorage.setItem(`ndht_seen_${c.id}`, Date.now().toString());
       $("commentDialogTitle").textContent=`${c.name} — Comments`;
       commentText.value="";
       commentText.disabled=!myCharacter;
@@ -356,19 +374,26 @@
       if(commentUnsub) commentUnsub();
       const q=query(collection(db,"courses",c.id,"comments"), orderBy("createdAt"));
       commentUnsub=onSnapshot(q, snap=>{
-        const comments=snap.docs.map(d=>d.data());
+        const comments=snap.docs.map(d=>({id:d.id,...d.data()}));
         commentList.innerHTML=comments.length?"":'<div class="sync-note">No comments yet — say something.</div>';
         comments.forEach(cm=>{
           const icon=CHAR_ICONS[cm.author]?`<img class="char-icon mini-icon" src="${CHAR_ICONS[cm.author]}" alt="">`:"";
+          const canDelete=myCharacter&&cm.author===myCharacter;
           const div=document.createElement("div"); div.className="comment";
-          div.innerHTML=`<div class="comment-head">${icon}<strong>${esc(cm.author||"Unknown")}</strong><span class="comment-time">${timeAgo(cm.createdAt)}</span></div><p>${esc(cm.text)}</p>`;
+          div.innerHTML=`<div class="comment-head">${icon}<strong>${esc(cm.author||"Unknown")}</strong><span class="comment-time">${timeAgo(cm.createdAt)}</span>${canDelete?`<button type="button" class="tiny comment-delete" data-id="${cm.id}" title="Delete comment">✕</button>`:""}</div><p>${esc(cm.text)}</p>`;
           commentList.appendChild(div);
         });
       });
       commentDialog.showModal();
     }
-    commentDialog.addEventListener("close", ()=>{ if(commentUnsub){ commentUnsub(); commentUnsub=null; } });
+    commentDialog.addEventListener("close", ()=>{ if(commentUnsub){ commentUnsub(); commentUnsub=null; } render(); });
     $("closeComments").onclick=()=>commentDialog.close();
+    commentList.onclick=async e=>{
+      const b=e.target.closest(".comment-delete"); if(!b||!commentCourseId) return;
+      if(!confirm("Delete this comment?")) return;
+      await deleteDoc(doc(db,"courses",commentCourseId,"comments",b.dataset.id));
+      await updateDoc(doc(db,"courses",commentCourseId),{commentCount:increment(-1)});
+    };
     commentForm.onsubmit=async e=>{
       e.preventDefault();
       const text=commentText.value.trim();
@@ -376,7 +401,7 @@
       const courseId=commentCourseId, course=courses.find(x=>x.id===courseId);
       commentText.value="";
       await addDoc(collection(db,"courses",courseId,"comments"),{author:myCharacter,text,createdAt:serverTimestamp()});
-      await updateDoc(doc(db,"courses",courseId),{commentCount:increment(1)});
+      await updateDoc(doc(db,"courses",courseId),{commentCount:increment(1),lastCommentAt:serverTimestamp()});
       notify({type:"new_comment",courseName:course?.name||"",author:myCharacter,text});
     };
 
@@ -532,6 +557,7 @@
       if(b.dataset.action==="delete"){if(!confirm(`Delete ${c.name}? This is how traditions die.`))return; await deleteDoc(doc(db,"courses",c.id));}
     };
     document.querySelectorAll(".filter").forEach(b=>b.onclick=()=>{filter=b.dataset.filter;render()});
+    $("addedByFilter").onchange=e=>{addedByFilter=e.target.value;render()};
     $("sortBy").onchange=e=>{sortBy=e.target.value;render()};
     $("randomPick").onclick=()=>{const candidates=courses.filter(c=>c.status!=="Completed"); if(!candidates.length)return alert("Everything is completed. Either you are legends, or the list is too weak."); const pick=candidates[Math.floor(Math.random()*candidates.length)]; alert(`The committee of bad decisions selects: ${pick.name}\n\n${pick.note}`)};
   </script>
