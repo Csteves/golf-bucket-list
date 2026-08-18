@@ -345,7 +345,44 @@ export default {
         const data = await resp.json();
         const { text, citations } = extractTextAndCitations(data);
 
-        return new Response(JSON.stringify({ text, citations }), {
+        let caddieTake = "";
+        if (text) {
+          try {
+            const takeResp = await fetch("https://api.openai.com/v1/responses", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                model: "gpt-4o-mini",
+                input: [
+                  { role: "system", content: SYSTEM_PROMPT },
+                  {
+                    role: "user",
+                    content: [
+                      `Task: In your voice as the Tour Caddie, distill the trip-planning facts below into a short, funny take (1-2 sentences, max ~55 words) — the practical gist (booking lead time, price vibe, hassle level, standout logistics) delivered in your comedic golf-bro style. This is a fun addendum to the serious info above it, not a replacement, so don't try to restate every bullet — just hit the 2-3 things that matter most before someone commits to a trip.`,
+                      `Return ONLY the line itself. No quotes, no numbering, no extra commentary.`,
+                      ``,
+                      `Course: ${courseName}`,
+                      ``,
+                      `Facts:`,
+                      text,
+                    ].join("\n"),
+                  },
+                ],
+              }),
+            });
+            if (takeResp.ok) {
+              const takeData = await takeResp.json();
+              caddieTake = extractOutputText(takeData).trim();
+            }
+          } catch {
+            // Caddie take is a nice-to-have — the factual bullets stand on their own.
+          }
+        }
+
+        return new Response(JSON.stringify({ text, citations, caddieTake }), {
           headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
         });
       } catch (err) {

@@ -391,7 +391,7 @@
         const data=await resp.json();
         if(!resp.ok||data.error) throw new Error(data.error||`HTTP ${resp.status}`);
         await updateDoc(doc(db,"courses",courseId),{
-          planningTips:{text:data.text||"",citations:data.citations||[],generatedAt:serverTimestamp()}
+          planningTips:{text:data.text||"",citations:data.citations||[],caddieTake:data.caddieTake||"",generatedAt:serverTimestamp()}
         });
         return true;
       }catch{
@@ -406,7 +406,8 @@
         return;
       }
       const bullets=info.text.split("\n").map(l=>l.replace(/^-+\s*/,"").trim()).filter(Boolean);
-      list.innerHTML=`<ul class="trip-tips-list">${bullets.map(b=>`<li>${esc(b)}</li>`).join("")}</ul>`;
+      const take=info.caddieTake?`<p class="note">“${esc(info.caddieTake)}”</p>`:"";
+      list.innerHTML=`${take}<ul class="trip-tips-list">${bullets.map(b=>`<li>${esc(b)}</li>`).join("")}</ul>`;
       const cites=info.citations||[];
       sources.innerHTML=cites.length?`Sources: ${cites.map(ct=>`<a href="${esc(ct.url)}" target="_blank" rel="noopener noreferrer">${esc(ct.title||ct.url)}</a>`).join(" · ")}`:"";
       status.textContent=info.generatedAt?.toDate?`Generated ${timeAgo(info.generatedAt)}`:"";
