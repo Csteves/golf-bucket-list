@@ -142,6 +142,16 @@ Added by: The Brush Hunter.`;
 
 const SYSTEM_PROMPT = `${INSTRUCTIONS}\n\n---\n\nReference knowledge doc:\n\n${KNOWLEDGE}`;
 
+const PLANNING_SYSTEM_PROMPT = `You are a practical golf-trip planning assistant. Given a golf course or resort name (and its location, if given), use web search to find durable, non-time-sensitive trip-planning information that golfers commonly report:
+
+- How far in advance you typically need to book (tee times, resort stays, permits, lotteries)
+- Best months/season to play
+- How the reservation/access system works (public access, resort-guest priority, membership required, lottery, waitlist, etc.)
+- A rough price tier only (budget / mid-range / premium) — never state exact dollar figures, since they change too fast to be reliable
+- Any standout logistical tips (stay-and-play packages, walking-only policy, weather patterns to avoid, dress code quirks)
+
+Write 4-6 short, plain, factual bullet points, one per line, each starting with "- ", and nothing else. Write in plain sentences with no markdown formatting (no bold, no inline links, no citation parentheticals like "(site.com)"). Do not add a "Sources" section, a references list, an intro sentence, or a closing offer to help further — the app shows sources separately, so output ONLY the bullet points themselves. No jokes, no character voice — just useful planning information a golfer could act on before booking a trip. If you can't find reliable information on a point, omit it rather than guessing.`;
+
 function corsHeaders(origin) {
   const headers = {
     "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -156,6 +166,43 @@ function extractOutputText(data) {
   const message = (data.output || []).find((item) => item.type === "message");
   const part = message?.content?.find((c) => c.type === "output_text");
   return part?.text || "";
+}
+
+function extractTextAndCitations(data) {
+  const message = (data.output || []).find((item) => item.type === "message");
+  const part = message?.content?.find((c) => c.type === "output_text");
+  if (!part) return { text: "", citations: [] };
+
+  const annotations = (part.annotations || []).filter(
+    (a) => a.type === "url_citation" && typeof a.start_index === "number" && typeof a.end_index === "number"
+  );
+
+  let text = part.text || "";
+  const sortedDesc = [...annotations].sort((a, b) => b.start_index - a.start_index);
+  for (const a of sortedDesc) {
+    text = text.slice(0, a.start_index) + text.slice(a.end_index);
+  }
+  text = text
+    .replace(/[ \t]+([.,;:])/g, "$1")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\*\*/g, "")
+    .replace(/\n(?:sources?|references?):?[\s\S]*$/i, "")
+    .trim();
+  text = text
+    .split("\n")
+    .filter((line) => line.trim().startsWith("-"))
+    .join("\n");
+
+  const seen = new Set();
+  const citations = [];
+  for (const a of annotations) {
+    if (!seen.has(a.url)) {
+      seen.add(a.url);
+      citations.push({ url: a.url, title: a.title || a.url });
+    }
+  }
+  return { text, citations };
 }
 
 function notifySubjectAndText(body) {
@@ -256,6 +303,57 @@ export default {
         status: 400,
         headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
       });
+    }
+
+    if (body?.mode === "planning_tips") {
+      const { courseName, location } = body || {};
+      if (!courseName) {
+        return new Response(JSON.stringify({ error: "courseName is required" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+        });
+      }
+      const userMessage = [`Course/resort: ${courseName}`, location && `Location: ${location}`]
+        .filter(Boolean)
+        .join("\n");
+
+      try {
+        const resp = await fetch("https://api.openai.com/v1/responses", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "gpt-4.1",
+            tools: [{ type: "web_search" }],
+            input: [
+              { role: "system", content: PLANNING_SYSTEM_PROMPT },
+              { role: "user", content: userMessage },
+            ],
+          }),
+        });
+
+        if (!resp.ok) {
+          const errText = await resp.text();
+          return new Response(JSON.stringify({ error: `OpenAI error: ${errText}` }), {
+            status: 502,
+            headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+          });
+        }
+
+        const data = await resp.json();
+        const { text, citations } = extractTextAndCitations(data);
+
+        return new Response(JSON.stringify({ text, citations }), {
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message || "Unknown error" }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+        });
+      }
     }
 
     const mode = body?.mode === "vibe" ? "vibe" : "generate_line";

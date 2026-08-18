@@ -39,6 +39,10 @@
     .tee-row{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;padding:9px 12px;border:1px solid var(--border);border-radius:12px;background:rgba(0,0,0,.16);font-size:13px}
     .tee-row strong{color:var(--gold)}
     .tee-row span{color:var(--muted)}
+    .trip-tips-list{margin:12px 0;padding-left:20px;display:grid;gap:8px}
+    .trip-tips-list li{color:var(--text);line-height:1.5}
+    #tripInfoSources{line-height:1.6}
+    #tripInfoSources a{color:var(--muted)}
     .course::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 100% 0%,var(--accent-soft),transparent 18rem);pointer-events:none}.course>*{position:relative}
     .course-top{display:flex;justify-content:space-between;gap:12px;align-items:start}.course h2{margin:0;font-size:24px;line-height:1;letter-spacing:-.03em}.course h2 a{color:inherit;text-decoration-color:rgba(247,241,223,.4)}.course h2 a:hover{text-decoration-color:var(--gold)}.location{margin-top:6px}
     .pill{border-radius:999px;padding:6px 9px;font-size:12px;font-weight:800;white-space:nowrap}.status-Completed{background:rgba(61,107,61,.32);color:#d9ffd7}.status-Next{background:rgba(215,168,76,.28);color:#ffe5aa}.status-Bucket{background:rgba(78,135,166,.25);color:#d8f2ff}
@@ -234,6 +238,16 @@
     </div>
   </dialog>
 
+  <dialog id="tripInfoDialog">
+    <div class="modal">
+      <h2 id="tripInfoDialogTitle">Trip Info</h2>
+      <div id="tripInfoStatus" class="sync-note"></div>
+      <div id="tripInfoList"></div>
+      <div id="tripInfoSources" class="sync-note"></div>
+      <div class="modal-actions"><button type="button" id="closeTripInfo">Close</button><button type="button" class="primary" id="renewTripInfo">🔄 Regenerate</button></div>
+    </div>
+  </dialog>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
     import {
@@ -317,7 +331,8 @@
         const hasNewComments=lastCommentAt>seenAt;
         const commentBadge=`<span${hasNewComments?' class="has-new"':""}>💬 ${c.commentCount||0}${hasNewComments?" •":""}</span>`;
         const teesBtn=maleTees(c).length?`<button class="tiny" data-action="tees" data-id="${c.id}">⛳ Tees</button>`:"";
-        el.innerHTML=`<div class="course-top"><div><h2>${nameLabel}</h2><div class="location">${esc(c.location||"Location TBD")}</div></div><span class="pill ${statusClass(c.status)}">${esc(c.status)}</span></div><p class="note">“${esc(c.note||"Pending questionable decisions.")}”</p><div class="meta">${addedByBadge}<span>🗓 ${esc(c.window||"Date TBD")}</span><span>🔥 ${c.votes} votes</span>${commentBadge}</div><div class="bar"><span style="width:${Math.round(c.votes/max*100)}%"></span></div><div class="actions">${teesBtn}<button class="tiny${hasVoted?" primary":""}" data-action="vote" data-id="${c.id}"${voteAttr}>${voteLabel}</button><button class="tiny" data-action="advance" data-id="${c.id}">Advance status</button><button class="tiny" data-action="edit" data-id="${c.id}">Edit</button><button class="tiny danger" data-action="delete" data-id="${c.id}">Delete</button></div>`;
+        const tripInfoBtn=`<button class="tiny" data-action="tripinfo" data-id="${c.id}">🗺 Trip Info</button>`;
+        el.innerHTML=`<div class="course-top"><div><h2>${nameLabel}</h2><div class="location">${esc(c.location||"Location TBD")}</div></div><span class="pill ${statusClass(c.status)}">${esc(c.status)}</span></div><p class="note">“${esc(c.note||"Pending questionable decisions.")}”</p><div class="meta">${addedByBadge}<span>🗓 ${esc(c.window||"Date TBD")}</span><span>🔥 ${c.votes} votes</span>${commentBadge}</div><div class="bar"><span style="width:${Math.round(c.votes/max*100)}%"></span></div><div class="actions">${teesBtn}${tripInfoBtn}<button class="tiny${hasVoted?" primary":""}" data-action="vote" data-id="${c.id}"${voteAttr}>${voteLabel}</button><button class="tiny" data-action="advance" data-id="${c.id}">Advance status</button><button class="tiny" data-action="edit" data-id="${c.id}">Edit</button><button class="tiny danger" data-action="delete" data-id="${c.id}">Delete</button></div>`;
         el.addEventListener("click", e=>{
           if(e.target.closest(".actions")||e.target.closest("a")) return;
           openComments(c);
@@ -367,6 +382,54 @@
       teesDialog.showModal();
     }
     $("closeTees").onclick=()=>teesDialog.close();
+
+    const tripInfoDialog=$("tripInfoDialog");
+    let tripInfoCourseId=null;
+    async function fetchTripInfo(courseId, courseName, location){
+      try{
+        const resp=await fetch(CADDIE_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mode:"planning_tips",courseName,location})});
+        const data=await resp.json();
+        if(!resp.ok||data.error) throw new Error(data.error||`HTTP ${resp.status}`);
+        await updateDoc(doc(db,"courses",courseId),{
+          planningTips:{text:data.text||"",citations:data.citations||[],generatedAt:serverTimestamp()}
+        });
+        return true;
+      }catch{
+        return false;
+      }
+    }
+    function renderTripInfo(c){
+      const info=c.planningTips, list=$("tripInfoList"), sources=$("tripInfoSources"), status=$("tripInfoStatus");
+      if(!info||!info.text){
+        list.innerHTML='<div class="sync-note">No trip info yet — click Regenerate to look it up.</div>';
+        sources.innerHTML=""; status.textContent="";
+        return;
+      }
+      const bullets=info.text.split("\n").map(l=>l.replace(/^-+\s*/,"").trim()).filter(Boolean);
+      list.innerHTML=`<ul class="trip-tips-list">${bullets.map(b=>`<li>${esc(b)}</li>`).join("")}</ul>`;
+      const cites=info.citations||[];
+      sources.innerHTML=cites.length?`Sources: ${cites.map(ct=>`<a href="${esc(ct.url)}" target="_blank" rel="noopener noreferrer">${esc(ct.title||ct.url)}</a>`).join(" · ")}`:"";
+      status.textContent=info.generatedAt?.toDate?`Generated ${timeAgo(info.generatedAt)}`:"";
+    }
+    function openTripInfo(c){
+      tripInfoCourseId=c.id;
+      $("tripInfoDialogTitle").textContent=`${c.name} — Trip Info`;
+      renderTripInfo(c);
+      tripInfoDialog.showModal();
+    }
+    $("closeTripInfo").onclick=()=>tripInfoDialog.close();
+    $("renewTripInfo").onclick=async()=>{
+      const c=courses.find(x=>x.id===tripInfoCourseId); if(!c) return;
+      const btn=$("renewTripInfo"); btn.disabled=true;
+      $("tripInfoStatus").textContent="Looking this up…";
+      $("tripInfoList").innerHTML="";
+      $("tripInfoSources").innerHTML="";
+      const ok=await fetchTripInfo(c.id, c.name, c.location);
+      btn.disabled=false;
+      if(!ok){ $("tripInfoStatus").textContent="Couldn't fetch trip info — try again."; return; }
+      const updated=courses.find(x=>x.id===tripInfoCourseId);
+      if(updated) renderTripInfo(updated);
+    };
 
     let commentUnsub=null, commentCourseId=null;
     const commentDialog=$("commentDialog"), commentList=$("commentList"), commentForm=$("commentForm"), commentText=$("commentText"), postCommentBtn=$("postComment");
@@ -560,6 +623,7 @@
       if(payload.status==="Next trip") await enforceSingleNextTrip(id);
       await setDoc(doc(db,"courses",id),payload);
       if(!existing) notify({type:"new_course",courseName:payload.name,status:payload.status,addedBy:payload.addedBy});
+      if(!existing) fetchTripInfo(id, payload.name, payload.location);
       dialog.close();
     };
     list.onclick=async e=>{
@@ -580,6 +644,7 @@
         await updateDoc(doc(db,"courses",c.id),{status:nextStatus});
       }
       if(b.dataset.action==="tees"){openTees(c);return}
+      if(b.dataset.action==="tripinfo"){openTripInfo(c);return}
       if(b.dataset.action==="edit"){openDialog(c);return}
       if(b.dataset.action==="delete"){if(!confirm(`Delete ${c.name}? This is how traditions die.`))return; await deleteDoc(doc(db,"courses",c.id));}
     };
