@@ -416,10 +416,12 @@
       tripInfoCourseId=c.id;
       $("tripInfoDialogTitle").textContent=`${c.name} — Trip Info`;
       renderTripInfo(c);
+      $("renewTripInfo").style.display=myCharacter==="The Par Hunter"?"":"none";
       tripInfoDialog.showModal();
     }
     $("closeTripInfo").onclick=()=>tripInfoDialog.close();
     $("renewTripInfo").onclick=async()=>{
+      if(myCharacter!=="The Par Hunter") return;
       const c=courses.find(x=>x.id===tripInfoCourseId); if(!c) return;
       const btn=$("renewTripInfo"); btn.disabled=true;
       $("tripInfoStatus").textContent="Looking this up…";
