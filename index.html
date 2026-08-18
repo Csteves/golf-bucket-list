@@ -109,6 +109,10 @@
       // makeCredential("phrase") in the browser console and paste the result in to
       // upgrade a member. There's no bulk/automatic conversion — going from SHA-256
       // to PBKDF2 needs the plaintext, which only the member holds.
+      // `blurb` is the short line shown on the site's character cards. `persona` is a
+      // longer paragraph sent to the worker per AI request (see CADDIE_CONTEXT below)
+      // so the worker's comedy prompt stays fork-agnostic — no character-specific text
+      // is hardcoded server-side anymore.
       members: [
         {
           character: "The Par Hunter",
@@ -116,7 +120,8 @@
           hash: "8c1d5962cab813dcf60c3d63b14962d5e5dc77118d73f916e160b3698090e4ea",
           welcome: "Access granted. No handicap til I die.",
           icon: "images/web/theparhunter.png",
-          blurb: "New SIM2 Max. One 425-yard legend. No need to fact-check cart path assistance."
+          blurb: "New SIM2 Max. One 425-yard legend. No need to fact-check cart path assistance.",
+          persona: "Calm, ominous, serious golf-assassin energy. Bald with full dark beard. Carries a TaylorMade SIM2 Max driver and recently hit a legendary 425-yard drive, possibly with suspicious assistance. Takes recreational golf way too seriously and shows up like a movie villain who weaponizes confidence. Brand lines: \"No handicap til I die,\" \"New driver. No apologies,\" \"425 yards. Deep. Long. Questionable.\""
         },
         {
           character: "The Brush Hunter",
@@ -124,7 +129,8 @@
           hash: "181ca59eac42bf1e4063ee2bf8687ac9dfdce7f9ff4d6d7e9810ca3c8899bcc7",
           welcome: "Access granted. Fairways fear you. Brushes remember you.",
           icon: "images/web/thebrushhunter.png",
-          blurb: "Fairways fear him. Brushes remember him. Clubs file for emotional damages."
+          blurb: "Fairways fear him. Brushes remember him. Clubs file for emotional damages.",
+          persona: "Probably the best golfer in the group when his temper isn't involved. Short-tempered in the rough — known for throwing clubs, slamming clubs into the ground, whacking bushes and tall grass, and breaking clubs. Elite ball-striking mixed with unresolved rage; one bad lie away from declaring war on vegetation. Brand line: \"Fairways fear him. Brushes remember him.\""
         },
         {
           character: "The Foreman",
@@ -132,7 +138,8 @@
           hash: "a96cf6401523b944fb2ec60964c65be77aeaae5e637edc078e69eebdd8e457a2",
           welcome: "Access granted. Money inside 100, chaos off the tee.",
           icon: "images/web/theforeman.png",
-          blurb: "Money inside 100. Off the tee, local golfers should maintain situational awareness."
+          blurb: "Money inside 100. Off the tee, local golfers should maintain situational awareness.",
+          persona: "Approach and short game are money; erratic and dangerous off the tee. Once hit another golfer, making \"Fore!!!\" part of his legend. Wedge game from heaven, driver dispersion from a crime scene — a public safety notice in golf shoes. Brand line: \"Money inside 100. Danger off the tee.\""
         },
         {
           character: "The Cougar Hunter",
@@ -140,7 +147,8 @@
           hash: "12444af95a849ce3547f92021cf6078f2cfffc03de8dc20717bbcf7e75f7ef4b",
           welcome: "Access granted. The patio has been warned.",
           icon: "images/web/thecougarhunter.png",
-          blurb: "Charm rating: dangerous. Most effective near par-19 watering holes and patio seating."
+          blurb: "Charm rating: dangerous. Most effective near par-19 watering holes and patio seating.",
+          persona: "Charming, social, known for mature ladies near the \"par 19 watering holes.\" Dangerous charm, patio menace, clubhouse flirt energy. Keep the humor suggestive, not explicit."
         }
       ],
 
@@ -395,9 +403,28 @@
 
     const CADDIE_URL = CONFIG.caddieUrl;
     const CADDIE_HEADERS = { "Content-Type": "application/json", "X-Fork-Token": CONFIG.forkToken };
+    // Sent on every AI request so the worker's prompt stays fork-agnostic — see
+    // worker/src/index.js buildSystemPrompt().
+    const CADDIE_CONTEXT = {
+      branding: { title: CONFIG.branding.title.replace(/<br>/g, " "), tagline: CONFIG.branding.tagline },
+      members: CONFIG.members.map(m => ({ character: m.character, persona: m.persona }))
+    };
 
     function isManager(character){
       return CONFIG.members.find(m => m.character === character)?.manager === true;
+    }
+
+    // The manager token gates only *regeneration* (unbounded, repeatable spend) —
+    // not the one-time auto-generation when a course is added, which stays open to
+    // everyone. Held in memory only (never localStorage) and prompted for lazily on
+    // first use, per session. This is a shared secret, not a security boundary: it's
+    // as strong as the manager not leaking it. See README.
+    let managerToken = null;
+    function getManagerToken(){
+      if (managerToken === null) {
+        managerToken = window.prompt("Manager code (spends the Caddie's paid budget — ask whoever holds it):") || "";
+      }
+      return managerToken;
     }
 
     function notify(payload){
@@ -507,11 +534,17 @@
 
     const tripInfoDialog=$("tripInfoDialog");
     let tripInfoCourseId=null;
-    async function fetchTripInfo(courseId, courseName, location){
+    async function fetchTripInfo(courseId, courseName, location, opts={}){
       try{
-        const resp=await fetch(CADDIE_URL,{method:"POST",headers:CADDIE_HEADERS,body:JSON.stringify({mode:"planning_tips",courseName,location})});
+        const headers = opts.regenerate ? {...CADDIE_HEADERS, "X-Manager-Token": opts.managerToken || ""} : CADDIE_HEADERS;
+        const body = {mode:"planning_tips",courseName,location,context:CADDIE_CONTEXT};
+        if(opts.regenerate) body.regenerate = true;
+        const resp=await fetch(CADDIE_URL,{method:"POST",headers,body:JSON.stringify(body)});
         const data=await resp.json();
-        if(!resp.ok||data.error) throw new Error(data.error||`HTTP ${resp.status}`);
+        if(!resp.ok||data.error){
+          if(resp.status===403 && opts.regenerate) managerToken=null; // wrong code — re-prompt next attempt
+          throw new Error(data.error||`HTTP ${resp.status}`);
+        }
         await updateDoc(doc(db,"courses",courseId),{
           planningTips:{text:data.text||"",citations:data.citations||[],caddieTake:data.caddieTake||"",generatedAt:serverTimestamp()}
         });
@@ -544,14 +577,16 @@
     $("closeTripInfo").onclick=()=>tripInfoDialog.close();
     $("renewTripInfo").onclick=async()=>{
       if(!isManager(myCharacter)) return;
+      const token=getManagerToken();
+      if(!token){ $("tripInfoStatus").textContent="Regenerate needs the manager code."; return; }
       const c=courses.find(x=>x.id===tripInfoCourseId); if(!c) return;
       const btn=$("renewTripInfo"); btn.disabled=true;
       $("tripInfoStatus").textContent="Looking this up…";
       $("tripInfoList").innerHTML="";
       $("tripInfoSources").innerHTML="";
-      const ok=await fetchTripInfo(c.id, c.name, c.location);
+      const ok=await fetchTripInfo(c.id, c.name, c.location, {regenerate:true, managerToken:token});
       btn.disabled=false;
-      if(!ok){ $("tripInfoStatus").textContent="Couldn't fetch trip info — try again."; return; }
+      if(!ok){ $("tripInfoStatus").textContent="Couldn't fetch trip info — check the manager code and try again."; return; }
       const updated=courses.find(x=>x.id===tripInfoCourseId);
       if(updated) renderTripInfo(updated);
     };
@@ -684,7 +719,7 @@
         $("featuresStatus").textContent="Asking the Caddie for the vibe…";
         try{
           const vibeResp=await fetch(CADDIE_URL,{method:"POST",headers:CADDIE_HEADERS,body:JSON.stringify({
-            mode:"vibe", courseName:$("courseName").value.trim(), rawDescription
+            mode:"vibe", courseName:$("courseName").value.trim(), rawDescription, context:CADDIE_CONTEXT
           })});
           const vibeData=await vibeResp.json();
           if(vibeResp.ok && vibeData.text){
@@ -713,7 +748,8 @@
       try{
         const resp=await fetch(CADDIE_URL,{method:"POST",headers:CADDIE_HEADERS,body:JSON.stringify({
           courseName, location:$("courseLocation").value.trim(), status,
-          addedBy:$("courseAddedBy").value, whyAdded:"", features:$("courseFeatures").value.trim()
+          addedBy:$("courseAddedBy").value, whyAdded:"", features:$("courseFeatures").value.trim(),
+          context:CADDIE_CONTEXT
         })});
         const data=await resp.json();
         if(!resp.ok||data.error) throw new Error(data.error||`HTTP ${resp.status}`);

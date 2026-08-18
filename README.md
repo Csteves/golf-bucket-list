@@ -38,6 +38,11 @@ across everyone who opens the page — no login required. The page reads/writes 
   abuse of the AI endpoints; both are visible in the served page, so this is
   not a boundary against a targeted attacker. The Cloudflare rate-limit rule
   on the worker route is the actual budget protection.
+- Trip-info **regeneration** (unbounded, repeatable spend) additionally
+  requires the `MANAGER_TOKEN` secret, entered in-browser and held in memory
+  only — this one is not shipped in the page. It's a shared secret, only as
+  strong as the manager not leaking it, but it's real: unlike `FORK_TOKEN`,
+  the worker will actually reject a regenerate call without it.
 - Firebase web config, the worker URL, and the App Check site key are public
   by design — hiding them isn't possible for a static client and isn't the
   point. Only the worker's API keys are genuine secrets, and they never reach
@@ -56,12 +61,22 @@ The worker (`worker/src/index.js`) needs these set once via `wrangler secret put
 - `FORK_TOKEN` — shared value also embedded in `index.html` as
   `CONFIG.forkToken`; must match exactly. Current value: see `CONFIG.forkToken`
   in `index.html`, or generate a fresh one with `openssl rand -hex 32` and
-  update both places together.
+  update both places together. This one is fine to be public — it ships in the
+  served page regardless — it only deters non-browser scripted abuse.
+- `MANAGER_TOKEN` — gates trip-info **regeneration** specifically (not the
+  automatic first-time lookup when a course is added, which stays open to
+  everyone). Unlike `FORK_TOKEN`, **this must never appear in `index.html` or
+  anywhere in the repo** — it's the one thing standing between "any member can
+  click Regenerate as many times as they want" and "only someone who has the
+  code can." Generate it with `openssl rand -hex 16`, set it as a secret, and
+  tell it only to whoever manages the fork (the `manager: true` member in
+  `CONFIG.members`) — they'll be prompted for it in-browser the first time
+  they click Regenerate each session; it's held in memory only, never saved.
 
 `SITE_ORIGIN` and `NOTIFY_FROM` are plain (non-secret) vars already set in
 `worker/wrangler.toml`.
 
-**Deploy order matters**: set all four secrets first, *then* `wrangler deploy`.
+**Deploy order matters**: set all five secrets first, *then* `wrangler deploy`.
 Deploying the new worker code before the secrets exist will make `guard()`
 reject every request (misconfigured `FORK_TOKEN`/`SITE_ORIGIN` reads as
 `undefined`, which never matches), breaking line generation, trip tips, and
