@@ -68,7 +68,7 @@ Write 4-6 short, plain, factual bullet points, one per line, each starting with 
 function corsHeaders(origin, allowedOrigin) {
   const headers = {
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, X-Fork-Token",
+    "Access-Control-Allow-Headers": "Content-Type, X-Fork-Token, X-Manager-Token",
   };
   if (origin === allowedOrigin) headers["Access-Control-Allow-Origin"] = allowedOrigin;
   return headers;
