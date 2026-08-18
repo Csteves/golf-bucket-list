@@ -188,7 +188,12 @@
       // Public by necessity (ships in the served page) — deters scripted/non-browser
       // abuse of the worker, not a real access boundary. Must match the worker's
       // FORK_TOKEN secret exactly (see worker/wrangler.toml + README).
-      forkToken: "135dca8a098514d68adbb51fb573077e48b090ec0d4ef37c79747b7f73eade6e"
+      forkToken: "135dca8a098514d68adbb51fb573077e48b090ec0d4ef37c79747b7f73eade6e",
+      // Gates the golf-specific features: course-name autocomplete, tee/slope/rating
+      // data, and Trip Info (both lean on OpenGolfAPI, a US-golf-only database, and/or
+      // worker prompts written for golf trips). Set false for a non-golf fork — leave
+      // true here.
+      enrichment: { enabled: true }
     };
 
     if (localStorage.getItem("ndht_gate") === "ok") document.body.classList.remove("locked");
@@ -479,8 +484,8 @@
         const seenAt=parseInt(localStorage.getItem(`ndht_seen_${c.id}`)||"0",10);
         const hasNewComments=lastCommentAt>seenAt;
         const commentBadge=`<span${hasNewComments?' class="has-new"':""}>💬 ${c.commentCount||0}${hasNewComments?" •":""}</span>`;
-        const teesBtn=maleTees(c).length?`<button class="tiny" data-action="tees" data-id="${c.id}">⛳ Tees</button>`:"";
-        const tripInfoBtn=`<button class="tiny" data-action="tripinfo" data-id="${c.id}">🗺 Trip Info</button>`;
+        const teesBtn=(CONFIG.enrichment.enabled && maleTees(c).length)?`<button class="tiny" data-action="tees" data-id="${c.id}">⛳ Tees</button>`:"";
+        const tripInfoBtn=CONFIG.enrichment.enabled?`<button class="tiny" data-action="tripinfo" data-id="${c.id}">🗺 Trip Info</button>`:"";
         el.innerHTML=`<div class="course-top"><div><h2>${nameLabel}</h2><div class="location">${esc(c.location||"Location TBD")}</div></div><span class="pill ${statusClass(c.status)}">${esc(c.status)}</span></div><p class="note">“${esc(c.note||"Pending questionable decisions.")}”</p><div class="meta">${addedByBadge}<span>🗓 ${esc(c.window||"Date TBD")}</span><span>🔥 ${c.votes} votes</span>${commentBadge}</div><div class="bar"><span style="width:${Math.round(c.votes/max*100)}%"></span></div><div class="actions">${teesBtn}${tripInfoBtn}<button class="tiny${hasVoted?" primary":""}" data-action="vote" data-id="${c.id}"${voteAttr}>${voteLabel}</button><button class="tiny" data-action="advance" data-id="${c.id}">Advance status</button><button class="tiny" data-action="edit" data-id="${c.id}">Edit</button><button class="tiny danger" data-action="delete" data-id="${c.id}">Delete</button></div>`;
         el.addEventListener("click", e=>{
           if(e.target.closest(".actions")||e.target.closest("a")) return;
@@ -654,6 +659,7 @@
       $("courseWebsite").value="";
       $("courseTeesData").value="";
       clearTimeout(courseSearchTimer);
+      if(!CONFIG.enrichment.enabled) return;
       const q=$("courseName").value.trim();
       if(q.length<3){ hideSuggestions(); return }
       courseSearchTimer=setTimeout(()=>searchCourses(q), 350);
@@ -784,7 +790,7 @@
       if(payload.status==="Next trip") await enforceSingleNextTrip(id);
       await setDoc(doc(db,"courses",id),payload);
       if(!existing) notify({type:"new_course",courseName:payload.name,status:payload.status,addedBy:payload.addedBy});
-      if(!existing) fetchTripInfo(id, payload.name, payload.location);
+      if(CONFIG.enrichment.enabled && !existing) fetchTripInfo(id, payload.name, payload.location);
       dialog.close();
     };
     list.onclick=async e=>{

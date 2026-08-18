@@ -2,6 +2,11 @@
 
 A static GitHub Pages site for the group's golf-course bucket list, live: https://csteves.github.io/golf-bucket-list/
 
+Want to run your own version of this for a different group (or a different
+topic entirely)? See **[FORK.md](FORK.md)** — everything fork-specific lives
+in one `CONFIG` block in `index.html`, and the backend worker has no
+hardcoded persona or branding text left to edit.
+
 ## Publish on GitHub Pages
 
 1. Create a new GitHub repo, for example `golf-bucket-list`.
@@ -81,6 +86,18 @@ Deploying the new worker code before the secrets exist will make `guard()`
 reject every request (misconfigured `FORK_TOKEN`/`SITE_ORIGIN` reads as
 `undefined`, which never matches), breaking line generation, trip tips, and
 notifications until the secrets are set.
+
+## Known gaps
+
+- `CONFIG.statuses` is declared but not fully wired up. The three status
+  names are still hardcoded in a few places in `index.html` — the filter
+  buttons, the add-course status `<select>`, and the sort-order map. Renaming
+  a status requires editing those directly, not just the config.
+- `CONFIG.enrichment.enabled` (default `true`) gates the golf-specific
+  features — course-name autocomplete, tee/slope/rating data, and Trip Info —
+  since they depend on a US-golf-only course database and worker prompts
+  written for golf trips. Line generation and vibes are unaffected either way
+  (they're generic since the worker stopped hardcoding personas).
 
 ## Adding a course
 
