@@ -26,6 +26,47 @@ across everyone who opens the page — no login required. The page reads/writes 
   the page link. Rules validate shape (name/status/votes) but don't restrict who can
   write — fine for a small trusted group, not for a public app.
 
+## Security model
+
+- The membership check on load is a **speed-bump, not a security boundary** —
+  a savvy user can bypass it entirely via `localStorage.setItem("ndht_gate","ok")`
+  in devtools. It's there for the bit, not to keep anyone out.
+- The real protection for Firestore is **App Check + `firestore.rules`**
+  (shape validation). App Check is currently a no-op (`CONFIG.appCheckSiteKey`
+  is empty) — see the worker setup section below for enabling it.
+- The worker's `guard()` (Origin + `X-Fork-Token` check) deters casual/scripted
+  abuse of the AI endpoints; both are visible in the served page, so this is
+  not a boundary against a targeted attacker. The Cloudflare rate-limit rule
+  on the worker route is the actual budget protection.
+- Firebase web config, the worker URL, and the App Check site key are public
+  by design — hiding them isn't possible for a static client and isn't the
+  point. Only the worker's API keys are genuine secrets, and they never reach
+  the browser.
+
+## Worker setup (secrets)
+
+The worker (`worker/src/index.js`) needs these set once via `wrangler secret put <NAME>`
+(run from the `worker/` directory) — never commit these values:
+
+- `OPENAI_API_KEY` — OpenAI key used for line generation, vibes, and trip tips.
+- `RESEND_API_KEY` — Resend key used for the `/notify` email endpoint.
+- `NOTIFY_TO` — the inbox that receives new-course/vote/comment notifications.
+  This is PII (a real email address), which is why it's a secret and not a
+  `CONFIG` value — the client never needs to know who gets notified.
+- `FORK_TOKEN` — shared value also embedded in `index.html` as
+  `CONFIG.forkToken`; must match exactly. Current value: see `CONFIG.forkToken`
+  in `index.html`, or generate a fresh one with `openssl rand -hex 32` and
+  update both places together.
+
+`SITE_ORIGIN` and `NOTIFY_FROM` are plain (non-secret) vars already set in
+`worker/wrangler.toml`.
+
+**Deploy order matters**: set all four secrets first, *then* `wrangler deploy`.
+Deploying the new worker code before the secrets exist will make `guard()`
+reject every request (misconfigured `FORK_TOKEN`/`SITE_ORIGIN` reads as
+`undefined`, which never matches), breaking line generation, trip tips, and
+notifications until the secrets are set.
+
 ## Adding a course
 
 When you add a new bucket-list course to the site, generate its line with the

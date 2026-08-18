@@ -90,13 +90,106 @@
 </head>
 <body class="locked">
   <script>
+    const CONFIG = {
+      branding: {
+        title: "The No Handicap<br>Golf Tour",
+        tagline: "A bucket list of courses, bad decisions, and unfinished business.",
+        eyebrow: "⛳ Highly unofficial committee record",
+        footer: "The No Handicap Golf Tour — pretending every trip is “about the course” since Seeley.",
+        gateCopy: {
+          eyebrow: "🔒 Committee credential check",
+          heading: "Prove You Belong",
+          body: "This tour has a very exclusive membership policy, and the Caddie never forgets a face. Prove you belong.",
+          hint: "Hint: the Caddie already knows. Ask the group chat if you don't."
+        }
+      },
+
+      // Each member has EITHER a legacy `hash` (unsalted SHA-256) OR salted-PBKDF2
+      // `{salt, passHash, iterations}`. Migration is self-service and one-way: run
+      // makeCredential("phrase") in the browser console and paste the result in to
+      // upgrade a member. There's no bulk/automatic conversion — going from SHA-256
+      // to PBKDF2 needs the plaintext, which only the member holds.
+      members: [
+        {
+          character: "The Par Hunter",
+          manager: true,
+          hash: "8c1d5962cab813dcf60c3d63b14962d5e5dc77118d73f916e160b3698090e4ea",
+          welcome: "Access granted. No handicap til I die.",
+          icon: "images/web/theparhunter.png",
+          blurb: "New SIM2 Max. One 425-yard legend. No need to fact-check cart path assistance."
+        },
+        {
+          character: "The Brush Hunter",
+          manager: false,
+          hash: "181ca59eac42bf1e4063ee2bf8687ac9dfdce7f9ff4d6d7e9810ca3c8899bcc7",
+          welcome: "Access granted. Fairways fear you. Brushes remember you.",
+          icon: "images/web/thebrushhunter.png",
+          blurb: "Fairways fear him. Brushes remember him. Clubs file for emotional damages."
+        },
+        {
+          character: "The Foreman",
+          manager: false,
+          hash: "a96cf6401523b944fb2ec60964c65be77aeaae5e637edc078e69eebdd8e457a2",
+          welcome: "Access granted. Money inside 100, chaos off the tee.",
+          icon: "images/web/theforeman.png",
+          blurb: "Money inside 100. Off the tee, local golfers should maintain situational awareness."
+        },
+        {
+          character: "The Cougar Hunter",
+          manager: false,
+          hash: "12444af95a849ce3547f92021cf6078f2cfffc03de8dc20717bbcf7e75f7ef4b",
+          welcome: "Access granted. The patio has been warned.",
+          icon: "images/web/thecougarhunter.png",
+          blurb: "Charm rating: dangerous. Most effective near par-19 watering holes and patio seating."
+        }
+      ],
+
+      gateRoasts: [
+        "Denied. The Par Hunter looked at your entry and just shook his head.",
+        "Nope. Even the Foreman wouldn't approve that shot.",
+        "Wrong. Somewhere, a bush is being violently trimmed in your honor.",
+        "Incorrect. The clubhouse has been alerted to a suspicious individual.",
+        "Still wrong. Try channeling more golf-bro energy."
+      ],
+
+      statuses: [
+        { label: "Bucket item", order: 1 },
+        { label: "Next trip",   order: 0, active: true },
+        { label: "Completed",   order: 2 }
+      ],
+
+      starterItems: [
+        {id:"seeley",name:"Seeley Lake",location:"Seeley Lake, MT",status:"Completed",window:"Completed",votes:0,addedBy:"The Foreman",note:"First official proving ground. Rain tried to kill the vibe. Failed."},
+        {id:"cdl",name:"Coeur d'Alene Resort Course",location:"Coeur d'Alene, ID",status:"Next trip",window:"Summer 2027",votes:0,addedBy:"The Par Hunter",note:"Floating green. Floating egos. The Par Hunter already has a logo for it."},
+        {id:"tobacco",name:"Tobacco Road",location:"Sanford, NC",status:"Bucket item",window:"Someday / when the group chat gets reckless",votes:0,addedBy:"The Par Hunter",note:"A bucket-list fever dream where scorecards go to die and excuses become literature."}
+      ],
+
+      firebaseConfig: {
+        projectId: "no-handicap",
+        appId: "1:263158336707:web:46a95fb13045d770f06676",
+        storageBucket: "no-handicap.firebasestorage.app",
+        apiKey: "AIzaSyAx-H3bqrE1fGyJvDHD6wA2ynSSSP4S76o",
+        authDomain: "no-handicap.firebaseapp.com",
+        messagingSenderId: "263158336707"
+      },
+      // Empty until you create a reCAPTCHA v3 site key in Firebase Console → App Check.
+      // Until then this is a no-op (see the App Check init below) — Firestore stays open
+      // to any client with the public config above, same as it is without this field.
+      appCheckSiteKey: "",
+      caddieUrl: "https://no-handicap-caddie.no-handicap-tour.workers.dev",
+      // Public by necessity (ships in the served page) — deters scripted/non-browser
+      // abuse of the worker, not a real access boundary. Must match the worker's
+      // FORK_TOKEN secret exactly (see worker/wrangler.toml + README).
+      forkToken: "135dca8a098514d68adbb51fb573077e48b090ec0d4ef37c79747b7f73eade6e"
+    };
+
     if (localStorage.getItem("ndht_gate") === "ok") document.body.classList.remove("locked");
   </script>
   <div id="gate">
     <div class="gate-card">
-      <span class="eyebrow">🔒 Committee credential check</span>
-      <h2>Prove You Belong</h2>
-      <p>This tour has a very exclusive membership policy, and the Caddie never forgets a face. Prove you belong.</p>
+      <span class="eyebrow" id="gateEyebrow">🔒 Committee credential check</span>
+      <h2 id="gateHeading">Prove You Belong</h2>
+      <p id="gateBody">This tour has a very exclusive membership policy, and the Caddie never forgets a face. Prove you belong.</p>
       <form id="gateForm">
         <input id="gatePass" type="password" autocomplete="off" placeholder="Whisper it to the Caddie" required>
         <button type="submit" class="primary">Prove Yourself</button>
@@ -106,32 +199,56 @@
     </div>
   </div>
   <script>
-    (function(){
-      const MEMBERS = {
-        "8c1d5962cab813dcf60c3d63b14962d5e5dc77118d73f916e160b3698090e4ea": { character: "The Par Hunter", welcome: "Access granted. No handicap til I die." },
-        "181ca59eac42bf1e4063ee2bf8687ac9dfdce7f9ff4d6d7e9810ca3c8899bcc7": { character: "The Brush Hunter", welcome: "Access granted. Fairways fear you. Brushes remember you." },
-        "a96cf6401523b944fb2ec60964c65be77aeaae5e637edc078e69eebdd8e457a2": { character: "The Foreman", welcome: "Access granted. Money inside 100, chaos off the tee." },
-        "12444af95a849ce3547f92021cf6078f2cfffc03de8dc20717bbcf7e75f7ef4b": { character: "The Cougar Hunter", welcome: "Access granted. The patio has been warned." }
-      };
-      const roasts = [
-        "Denied. The Par Hunter looked at your entry and just shook his head.",
-        "Nope. Even the Foreman wouldn't approve that shot.",
-        "Wrong. Somewhere, a bush is being violently trimmed in your honor.",
-        "Incorrect. The clubhouse has been alerted to a suspicious individual.",
-        "Still wrong. Try channeling more golf-bro energy."
-      ];
-      let attempts = 0;
-      async function sha256(text){
-        const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-        return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+    async function sha256(text){
+      const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+      return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+    }
+
+    // Salted PBKDF2 — replaces plain SHA-256 so identical phrases across members/forks
+    // don't produce identical hashes, and short phrases aren't rainbow-tableable.
+    async function derive(plain, saltHex, iterations){
+      const salt = Uint8Array.from(saltHex.match(/../g).map(h => parseInt(h, 16)));
+      const km = await crypto.subtle.importKey(
+        "raw", new TextEncoder().encode(plain.trim()), "PBKDF2", false, ["deriveBits"]);
+      const bits = await crypto.subtle.deriveBits(
+        { name: "PBKDF2", salt, iterations, hash: "SHA-256" }, km, 256);
+      return [...new Uint8Array(bits)].map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+
+    async function checkGate(plain){
+      for (const m of CONFIG.members) {          // 4 members → linear scan is fine
+        if (m.salt && m.passHash) {
+          if (await derive(plain, m.salt, m.iterations) === m.passHash) return m;
+        } else if (m.hash) {
+          if (await sha256(plain) === m.hash) return m;
+        }
       }
+      return null;
+    }
+
+    // Console-runnable, one-off: makeCredential("whispered phrase").then(c => console.log(JSON.stringify(c)))
+    // Run it locally, paste only {salt, passHash, iterations} into CONFIG.members — plaintext never enters the repo.
+    async function makeCredential(plain){
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const saltHex = [...salt].map(b => b.toString(16).padStart(2, "0")).join("");
+      return { salt: saltHex, passHash: await derive(plain, saltHex, 200000), iterations: 200000 };
+    }
+
+    (function(){
+      document.getElementById("gateEyebrow").textContent = CONFIG.branding.gateCopy.eyebrow;
+      document.getElementById("gateHeading").textContent = CONFIG.branding.gateCopy.heading;
+      document.getElementById("gateBody").textContent = CONFIG.branding.gateCopy.body;
+      document.getElementById("gateHint").textContent = CONFIG.branding.gateCopy.hint;
+
+      const roasts = CONFIG.gateRoasts;
+      let attempts = 0;
+
       document.getElementById("gateForm").addEventListener("submit", async (e)=>{
         e.preventDefault();
         const card = document.querySelector(".gate-card");
         const msg = document.getElementById("gateMsg");
         const input = document.getElementById("gatePass");
-        const hash = await sha256(input.value.trim());
-        const member = MEMBERS[hash];
+        const member = await checkGate(input.value.trim());
         if (member) {
           msg.textContent = member.welcome;
           msg.classList.add("ok");
@@ -153,11 +270,11 @@
   <main class="wrap">
     <header>
       <div class="header-top">
-        <span class="eyebrow">⛳ Highly unofficial committee record</span>
+        <span class="eyebrow" id="heroEyebrow">⛳ Highly unofficial committee record</span>
         <div id="whoAmI"></div>
       </div>
-      <h1>The No Handicap<br>Golf Tour</h1>
-      <p class="lead"><em>A bucket list of courses, bad decisions, and unfinished business.</em></p>
+      <h1 id="heroTitle">The No Handicap<br>Golf Tour</h1>
+      <p class="lead"><em id="heroTagline">A bucket list of courses, bad decisions, and unfinished business.</em></p>
       <div class="hero-actions">
         <button class="primary" id="openAdd">Add a course</button>
         <button id="randomPick">Spin the bad-decision wheel</button>
@@ -179,20 +296,15 @@
           <button class="filter" data-filter="Next trip">Next trip</button>
           <button class="filter" data-filter="Bucket item">Bucket item</button>
         </div>
-        <select id="addedByFilter"><option value="All" selected>All contributors</option><option>The Par Hunter</option><option>The Brush Hunter</option><option>The Foreman</option><option>The Cougar Hunter</option></select>
+        <select id="addedByFilter"><option value="All" selected>All contributors</option></select>
         <select id="sortBy"><option value="status" selected>Sort by status</option><option value="votes">Sort by votes</option><option value="name">Sort by name</option></select>
       </div>
       <div id="courseList" class="grid course-list"></div>
     </section>
 
-    <section class="grid characters">
-      <div class="character"><div class="character-head"><img class="char-icon" src="images/web/theparhunter.png" alt=""><strong>The Par Hunter</strong></div><span>New SIM2 Max. One 425-yard legend. No need to fact-check cart path assistance.</span></div>
-      <div class="character"><div class="character-head"><img class="char-icon" src="images/web/thebrushhunter.png" alt=""><strong>The Brush Hunter</strong></div><span>Fairways fear him. Brushes remember him. Clubs file for emotional damages.</span></div>
-      <div class="character"><div class="character-head"><img class="char-icon" src="images/web/theforeman.png" alt=""><strong>The Foreman</strong></div><span>Money inside 100. Off the tee, local golfers should maintain situational awareness.</span></div>
-      <div class="character"><div class="character-head"><img class="char-icon" src="images/web/thecougarhunter.png" alt=""><strong>The Cougar Hunter</strong></div><span>Charm rating: dangerous. Most effective near par-19 watering holes and patio seating.</span></div>
-    </section>
+    <section class="grid characters" id="charactersGrid"></section>
 
-    <footer>The No Handicap Golf Tour — pretending every trip is “about the course” since Seeley.</footer>
+    <footer id="siteFooter">The No Handicap Golf Tour — pretending every trip is “about the course” since Seeley.</footer>
   </main>
 
   <dialog id="courseDialog">
@@ -206,7 +318,7 @@
         <label>Location <input id="courseLocation" placeholder="City, state"></label>
         <label>Status <select id="courseStatus"><option>Bucket item</option><option>Next trip</option><option>Completed</option></select></label>
         <label>Trip window <input id="courseWindow" placeholder="Example: Summer 2027"></label>
-        <label>Added by (character) <div class="addedby-row"><img id="addedByIcon" class="char-icon" src="" alt="" style="display:none"><select id="courseAddedBy"><option value="">— none —</option><option>The Par Hunter</option><option>The Brush Hunter</option><option>The Foreman</option><option>The Cougar Hunter</option></select></div></label>
+        <label>Added by (character) <div class="addedby-row"><img id="addedByIcon" class="char-icon" src="" alt="" style="display:none"><select id="courseAddedBy"><option value="">— none —</option></select></div></label>
         <label>Course vibe / features <input id="courseFeatures" placeholder="water, bunkers, elevation, prestige..."> <span id="featuresStatus" class="sync-note"></span></label>
         <label>Inside joke / scouting report <textarea id="courseNote" rows="3" placeholder="Example: Bring bail money and extra balls."></textarea></label>
         <div>
@@ -248,44 +360,54 @@
     </div>
   </dialog>
 
+  <script>
+    document.getElementById("heroEyebrow").textContent = CONFIG.branding.eyebrow;
+    document.getElementById("heroTitle").innerHTML = CONFIG.branding.title;
+    document.getElementById("heroTagline").textContent = CONFIG.branding.tagline;
+    document.getElementById("siteFooter").textContent = CONFIG.branding.footer;
+
+    document.getElementById("charactersGrid").innerHTML = CONFIG.members.map(m =>
+      `<div class="character"><div class="character-head"><img class="char-icon" src="${m.icon}" alt=""><strong>${m.character}</strong></div><span>${m.blurb}</span></div>`
+    ).join("");
+
+    const memberOptionsHtml = CONFIG.members.map(m => `<option>${m.character}</option>`).join("");
+    document.getElementById("addedByFilter").insertAdjacentHTML("beforeend", memberOptionsHtml);
+    document.getElementById("courseAddedBy").insertAdjacentHTML("beforeend", memberOptionsHtml);
+  </script>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+    import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check.js";
     import {
       getFirestore, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, increment, arrayUnion, arrayRemove,
       addDoc, query, orderBy, serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
-    const firebaseConfig = {
-      projectId: "no-handicap",
-      appId: "1:263158336707:web:46a95fb13045d770f06676",
-      storageBucket: "no-handicap.firebasestorage.app",
-      apiKey: "AIzaSyAx-H3bqrE1fGyJvDHD6wA2ynSSSP4S76o",
-      authDomain: "no-handicap.firebaseapp.com",
-      messagingSenderId: "263158336707"
-    };
-    const app = initializeApp(firebaseConfig);
+    const app = initializeApp(CONFIG.firebaseConfig);
+    // App Check + Firestore rules are the real protection here — the passphrase gate
+    // below is a speed-bump, not a security boundary (bypassable via
+    // localStorage.setItem("ndht_gate","ok") in devtools). See README.
+    if (CONFIG.appCheckSiteKey) {
+      initializeAppCheck(app, { provider: new ReCaptchaV3Provider(CONFIG.appCheckSiteKey), isTokenAutoRefreshEnabled: true });
+    }
     const db = getFirestore(app);
     const coursesCol = collection(db, "courses");
 
-    const CADDIE_URL = "https://no-handicap-caddie.no-handicap-tour.workers.dev";
+    const CADDIE_URL = CONFIG.caddieUrl;
+    const CADDIE_HEADERS = { "Content-Type": "application/json", "X-Fork-Token": CONFIG.forkToken };
 
-    function notify(payload){
-      if(myCharacter==="The Par Hunter") return;
-      fetch(`${CADDIE_URL}/notify`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}).catch(()=>{});
+    function isManager(character){
+      return CONFIG.members.find(m => m.character === character)?.manager === true;
     }
 
-    const starterCourses=[
-      {id:"seeley",name:"Seeley Lake",location:"Seeley Lake, MT",status:"Completed",window:"Completed",votes:0,addedBy:"The Foreman",note:"First official proving ground. Rain tried to kill the vibe. Failed."},
-      {id:"cdl",name:"Coeur d'Alene Resort Course",location:"Coeur d'Alene, ID",status:"Next trip",window:"Summer 2027",votes:0,addedBy:"The Par Hunter",note:"Floating green. Floating egos. The Par Hunter already has a logo for it."},
-      {id:"tobacco",name:"Tobacco Road",location:"Sanford, NC",status:"Bucket item",window:"Someday / when the group chat gets reckless",votes:0,addedBy:"The Par Hunter",note:"A bucket-list fever dream where scorecards go to die and excuses become literature."}
-    ];
+    function notify(payload){
+      if(isManager(myCharacter)) return;
+      fetch(`${CADDIE_URL}/notify`,{method:"POST",headers:CADDIE_HEADERS,body:JSON.stringify(payload)}).catch(()=>{});
+    }
 
-    const CHAR_ICONS = {
-      "The Par Hunter": "images/web/theparhunter.png",
-      "The Brush Hunter": "images/web/thebrushhunter.png",
-      "The Foreman": "images/web/theforeman.png",
-      "The Cougar Hunter": "images/web/thecougarhunter.png"
-    };
+    const starterCourses = CONFIG.starterItems;
+
+    const CHAR_ICONS = Object.fromEntries(CONFIG.members.map(m => [m.character, m.icon]));
 
     let myCharacter = localStorage.getItem("ndht_character") || "";
     function renderIdentityBadge(){
@@ -387,7 +509,7 @@
     let tripInfoCourseId=null;
     async function fetchTripInfo(courseId, courseName, location){
       try{
-        const resp=await fetch(CADDIE_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mode:"planning_tips",courseName,location})});
+        const resp=await fetch(CADDIE_URL,{method:"POST",headers:CADDIE_HEADERS,body:JSON.stringify({mode:"planning_tips",courseName,location})});
         const data=await resp.json();
         if(!resp.ok||data.error) throw new Error(data.error||`HTTP ${resp.status}`);
         await updateDoc(doc(db,"courses",courseId),{
@@ -416,12 +538,12 @@
       tripInfoCourseId=c.id;
       $("tripInfoDialogTitle").textContent=`${c.name} — Trip Info`;
       renderTripInfo(c);
-      $("renewTripInfo").style.display=myCharacter==="The Par Hunter"?"":"none";
+      $("renewTripInfo").style.display=isManager(myCharacter)?"":"none";
       tripInfoDialog.showModal();
     }
     $("closeTripInfo").onclick=()=>tripInfoDialog.close();
     $("renewTripInfo").onclick=async()=>{
-      if(myCharacter!=="The Par Hunter") return;
+      if(!isManager(myCharacter)) return;
       const c=courses.find(x=>x.id===tripInfoCourseId); if(!c) return;
       const btn=$("renewTripInfo"); btn.disabled=true;
       $("tripInfoStatus").textContent="Looking this up…";
@@ -561,7 +683,7 @@
         if(!rawDescription){ $("featuresStatus").textContent=""; return; }
         $("featuresStatus").textContent="Asking the Caddie for the vibe…";
         try{
-          const vibeResp=await fetch(CADDIE_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+          const vibeResp=await fetch(CADDIE_URL,{method:"POST",headers:CADDIE_HEADERS,body:JSON.stringify({
             mode:"vibe", courseName:$("courseName").value.trim(), rawDescription
           })});
           const vibeData=await vibeResp.json();
@@ -589,7 +711,7 @@
       if(!courseName){$("caddieStatus").textContent="Enter a course name first.";return}
       const btn=$("generateLine"); btn.disabled=true; $("caddieStatus").textContent="Consulting the Caddie…"; $("caddieResults").innerHTML="";
       try{
-        const resp=await fetch(CADDIE_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        const resp=await fetch(CADDIE_URL,{method:"POST",headers:CADDIE_HEADERS,body:JSON.stringify({
           courseName, location:$("courseLocation").value.trim(), status,
           addedBy:$("courseAddedBy").value, whyAdded:"", features:$("courseFeatures").value.trim()
         })});

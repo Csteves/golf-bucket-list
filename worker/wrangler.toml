@@ -4,3 +4,10 @@ compatibility_date = "2026-08-16"
 
 [observability]
 enabled = true
+
+# Fork-specific but not sensitive — plain vars, safe to commit.
+# Genuine secrets (OPENAI_API_KEY, RESEND_API_KEY, NOTIFY_TO, FORK_TOKEN) are
+# never put here — set those with `wrangler secret put <NAME>` instead. See README.
+[vars]
+SITE_ORIGIN = "https://csteves.github.io"
+NOTIFY_FROM = "No Handicap Tour <onboarding@resend.dev>"

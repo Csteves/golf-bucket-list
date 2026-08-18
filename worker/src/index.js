@@ -1,7 +1,3 @@
-const ALLOWED_ORIGIN = "https://csteves.github.io";
-const NOTIFY_TO = "barryblocker44@gmail.com";
-const NOTIFY_FROM = "No Handicap Tour <onboarding@resend.dev>";
-
 const INSTRUCTIONS = `You are the official comedy caddie and copywriter for The No Handicap Golf Tour.
 
 The No Handicap Golf Tour is a shared golf bucket list for a friend group built around recurring golf alter-egos, inside jokes, bad decisions, and unfinished business.
@@ -152,13 +148,31 @@ const PLANNING_SYSTEM_PROMPT = `You are a practical golf-trip planning assistant
 
 Write 4-6 short, plain, factual bullet points, one per line, each starting with "- ", and nothing else. Write in plain sentences with no markdown formatting (no bold, no inline links, no citation parentheticals like "(site.com)"). Do not add a "Sources" section, a references list, an intro sentence, or a closing offer to help further — the app shows sources separately, so output ONLY the bullet points themselves. No jokes, no character voice — just useful planning information a golfer could act on before booking a trip. If you can't find reliable information on a point, omit it rather than guessing.`;
 
-function corsHeaders(origin) {
+function corsHeaders(origin, allowedOrigin) {
   const headers = {
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-Fork-Token",
   };
-  if (origin === ALLOWED_ORIGIN) headers["Access-Control-Allow-Origin"] = ALLOWED_ORIGIN;
+  if (origin === allowedOrigin) headers["Access-Control-Allow-Origin"] = allowedOrigin;
   return headers;
+}
+
+function forbidden(origin, allowedOrigin) {
+  return new Response(JSON.stringify({ error: "Forbidden" }), {
+    status: 403,
+    headers: { "Content-Type": "application/json", ...corsHeaders(origin, allowedOrigin) },
+  });
+}
+
+// Origin + X-Fork-Token are both visible/spoofable to a non-browser client (the
+// token ships in the served page) — this deters casual/scripted abuse of the
+// worker directly, not a targeted attacker. Real budget protection is the
+// Cloudflare rate-limit rule on this route (set in the dashboard).
+function guard(request, env) {
+  const origin = request.headers.get("Origin") || "";
+  if (origin !== env.SITE_ORIGIN) return true;
+  if (request.headers.get("X-Fork-Token") !== env.FORK_TOKEN) return true;
+  return false;
 }
 
 function extractOutputText(data) {
@@ -236,11 +250,15 @@ export default {
     const url = new URL(request.url);
 
     if (request.method === "OPTIONS") {
-      return new Response(null, { headers: corsHeaders(origin) });
+      return new Response(null, { headers: corsHeaders(origin, env.SITE_ORIGIN) });
     }
 
     if (request.method !== "POST") {
-      return new Response("Method not allowed", { status: 405, headers: corsHeaders(origin) });
+      return new Response("Method not allowed", { status: 405, headers: corsHeaders(origin, env.SITE_ORIGIN) });
+    }
+
+    if (guard(request, env)) {
+      return forbidden(origin, env.SITE_ORIGIN);
     }
 
     if (url.pathname === "/notify") {
@@ -250,7 +268,7 @@ export default {
       } catch {
         return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
           status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env.SITE_ORIGIN) },
         });
       }
 
@@ -258,7 +276,7 @@ export default {
       if (!msg) {
         return new Response(JSON.stringify({ error: "Unknown notify type" }), {
           status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env.SITE_ORIGIN) },
         });
       }
 
@@ -270,8 +288,8 @@ export default {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            from: NOTIFY_FROM,
-            to: [NOTIFY_TO],
+            from: env.NOTIFY_FROM,
+            to: [env.NOTIFY_TO],
             subject: msg.subject,
             text: msg.text,
           }),
@@ -280,18 +298,18 @@ export default {
           const errText = await resp.text();
           return new Response(JSON.stringify({ error: `Resend error: ${errText}` }), {
             status: 502,
-            headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+            headers: { "Content-Type": "application/json", ...corsHeaders(origin, env.SITE_ORIGIN) },
           });
         }
       } catch (err) {
         return new Response(JSON.stringify({ error: err.message || "Unknown error" }), {
           status: 500,
-          headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env.SITE_ORIGIN) },
         });
       }
 
       return new Response(JSON.stringify({ ok: true }), {
-        headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+        headers: { "Content-Type": "application/json", ...corsHeaders(origin, env.SITE_ORIGIN) },
       });
     }
 
@@ -301,7 +319,7 @@ export default {
     } catch {
       return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
         status: 400,
-        headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+        headers: { "Content-Type": "application/json", ...corsHeaders(origin, env.SITE_ORIGIN) },
       });
     }
 
@@ -310,7 +328,7 @@ export default {
       if (!courseName) {
         return new Response(JSON.stringify({ error: "courseName is required" }), {
           status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env.SITE_ORIGIN) },
         });
       }
       const userMessage = [`Course/resort: ${courseName}`, location && `Location: ${location}`]
@@ -338,7 +356,7 @@ export default {
           const errText = await resp.text();
           return new Response(JSON.stringify({ error: `OpenAI error: ${errText}` }), {
             status: 502,
-            headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+            headers: { "Content-Type": "application/json", ...corsHeaders(origin, env.SITE_ORIGIN) },
           });
         }
 
@@ -383,12 +401,12 @@ export default {
         }
 
         return new Response(JSON.stringify({ text, citations, caddieTake }), {
-          headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env.SITE_ORIGIN) },
         });
       } catch (err) {
         return new Response(JSON.stringify({ error: err.message || "Unknown error" }), {
           status: 500,
-          headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env.SITE_ORIGIN) },
         });
       }
     }
@@ -401,7 +419,7 @@ export default {
       if (!courseName || !rawDescription) {
         return new Response(JSON.stringify({ error: "courseName and rawDescription are required" }), {
           status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env.SITE_ORIGIN) },
         });
       }
       userMessage = [
@@ -415,7 +433,7 @@ export default {
       if (!courseName || !status) {
         return new Response(JSON.stringify({ error: "courseName and status are required" }), {
           status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env.SITE_ORIGIN) },
         });
       }
       userMessage = [
@@ -450,7 +468,7 @@ export default {
         const errText = await resp.text();
         return new Response(JSON.stringify({ error: `OpenAI error: ${errText}` }), {
           status: 502,
-          headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+          headers: { "Content-Type": "application/json", ...corsHeaders(origin, env.SITE_ORIGIN) },
         });
       }
 
@@ -458,12 +476,12 @@ export default {
       const text = extractOutputText(data);
 
       return new Response(JSON.stringify({ text }), {
-        headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+        headers: { "Content-Type": "application/json", ...corsHeaders(origin, env.SITE_ORIGIN) },
       });
     } catch (err) {
       return new Response(JSON.stringify({ error: err.message || "Unknown error" }), {
         status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+        headers: { "Content-Type": "application/json", ...corsHeaders(origin, env.SITE_ORIGIN) },
       });
     }
   },
